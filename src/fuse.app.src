@@ -8,5 +8,6 @@
 		stdlib,
 		sasl
 	]},
+	{mod, {fuse_app, []}},
 	{env, []}
 ]}.

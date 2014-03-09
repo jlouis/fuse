@@ -1,0 +1,2 @@
+app:
+	$(MAKE) -C .. app

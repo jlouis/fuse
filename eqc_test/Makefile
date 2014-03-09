@@ -1,0 +1,2 @@
+console:
+	erl -pa ../ebin

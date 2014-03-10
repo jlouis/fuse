@@ -1,4 +1,5 @@
 %%% @doc Application startup callback
+%%% @private
 -module(fuse_app).
 -behaviour(application).
 

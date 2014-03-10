@@ -3,3 +3,5 @@ current_counterexample.eqc
 *.beam
 *.app
 .fuse.plt
+doc
+deps

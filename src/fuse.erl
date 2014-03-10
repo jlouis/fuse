@@ -9,6 +9,10 @@
 -type fuse_options() ::
 	[ {policy, fuse_policy()} ].
 
+%% @doc install/2 adds a new fuse to the running system.
+%% A call `install(N, Os)' will add a new fuse under the name `N' with options given by `Os'. Note that the options must match
+%% the correct type, or a `badarg' error will be thrown.
+%% @end
 -spec install(Name, Options) -> ok | reset | {error, Reason}
 	when
 	  Name :: atom(),

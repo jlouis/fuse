@@ -12,7 +12,13 @@
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
--record(state, {}).
+-define(TAB, fuse_state).
+
+-record(state, { fuses = [] }).
+-record(fuse, {
+	name :: atom(),
+	policy :: {counter, pos_integer()}
+}).
 
 %% ------
 %% @doc Start up the manager server for the fuse system
@@ -28,13 +34,18 @@ start_link() ->
 %% @end
 install(Name, Opts) ->
 	%% Assume options are already verified
-	gen_server:call(?MODULE, {install, Name, Opts}).
+	Fuse = init_state(Name, Opts),
+	gen_server:call(?MODULE, {install, Fuse}).
 
 %% @private
 init([]) ->
+	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
 	{ok, #state{}}.
 
 %% @private
+handle_call({install, #fuse { name = Name, policy = {counter, N}} = Fuse}, _From, #state { fuses = Fs } = State) ->
+	ok = mk_fuse_state(Name, N),
+	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
 	
@@ -53,3 +64,14 @@ terminate(_Reason, _State) ->
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
+
+%%% Internal functions
+%%% ------
+
+mk_fuse_state(Name, Count) ->
+    true = ets:insert(?TAB, {Name, ok, Count}),
+    ok.
+
+init_state(Name, Opts) ->
+    Policy = proplists:get_value(policy, Opts),
+    #fuse { name = Name, policy = Policy }.

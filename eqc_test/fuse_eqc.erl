@@ -11,11 +11,20 @@
 
 fuses() -> [fuse_a, fuse_b, fuse_c, fuse_d].
 
+g_atom() ->
+	oneof([a,b,c,d,e,f]).
+
 g_name() ->
 	oneof(fuses()).
 
+g_strategy() ->
+	{standard, 5, 100}.
+
+g_refresh() ->
+	{reset, 60000}.
+	
 g_options() ->
-	return([{policy, {counter, 2}}]).
+	return({g_strategy(), g_refresh()}).
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
@@ -26,7 +35,7 @@ install_args(_S) ->
 	[g_name(), g_options()].
 
 install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
-	[{policy, {counter, Count}}] = Opts,
+	{{standard, Count, _}, _} = Opts,
 	T = {Name, Count},
 	S#state { installed = lists:keystore(Name, 1, Is, T) }.
 
@@ -81,7 +90,7 @@ ask_neg_args(S) ->
 	[oneof(fuses() -- names(S))].
 	
 ask_neg_post(_S, _, Ret) ->
-	eq(Ret, {error, not_found}).
+	eq(Ret, {error, no_such_fuse_name}).
 	
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------

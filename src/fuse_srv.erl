@@ -17,8 +17,12 @@
 -record(state, { fuses = [] }).
 -record(fuse, {
 	name :: atom(),
-	policy :: {counter, pos_integer()}
+	max_r :: integer(),
+	max_t :: integer(),
+	reset :: integer(),
+	history = []
 }).
+
 
 %% ------
 %% @doc Start up the manager server for the fuse system
@@ -56,8 +60,8 @@ init([]) ->
 	{ok, #state{}}.
 
 %% @private
-handle_call({install, #fuse { name = Name, policy = {counter, N}} = Fuse}, _From, #state { fuses = Fs } = State) ->
-	ok = mk_fuse_state(Name, N),
+handle_call({install, #fuse { name = Name} = Fuse}, _From, #state { fuses = Fs } = State) ->
+	ok = mk_fuse_state(Name),
 	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
@@ -81,10 +85,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%% ------
 
-mk_fuse_state(Name, Count) ->
-    true = ets:insert(?TAB, {Name, ok, Count}),
+mk_fuse_state(Name) ->
+    true = ets:insert(?TAB, {Name, ok}),
     ok.
 
-init_state(Name, Opts) ->
-    Policy = proplists:get_value(policy, Opts),
-    #fuse { name = Name, policy = Policy }.
+init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
+    #fuse { name = Name, max_r = MaxR, max_t = MaxT, reset = Reset }.

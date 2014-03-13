@@ -23,15 +23,17 @@ To use fuse, you must first start the fuse application:
 but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must install a fuse into the system by *installing* a fuse descriptions:
 
 	Name = database_timeout,
-	Opts = [
-		{policy, {counter, 5}},
-		{folsom_metric, 'fuse.database_timeout'},
-		alarm,
-		{recheck_interval, 5*60*1000}
-	],
+	Strategy = {standard, MaxR, MaxT},
+	Refresh = {reset, 60000},
+	Opts = {Strategy, Refresh},
 	fuse:install(Name, Opts).
 	
-This sets up a *fuse* with a given Name and a given set of options. Fuses are name-created idempotently, so your application can recreate a fuse if it wants. Note however, that fuse recreation has two major rules:
+This sets up a *fuse* with a given Name and a given set of options. Options are given as a tuple with two values. The *strategy* of the fuse and the *refresh* of the fuse.
+
+* Strategy denotes what kind of fuse we have. The default is a `standard` fuse. Such a fuse will tolerate `MaxR` melting attempts in a time window of `MaxT`.
+* Refresh tells what to do with the fuse once it melts. Here we say that the fuse will reset after 60000ms.
+
+Fuses are name-created idempotently, so your application can recreate a fuse if it wants. Note however, that fuse recreation has two major rules:
 
 * Reinstalling a fuse resets its internal state.
 * Reinstalling a fuse can reset its options.

@@ -4,10 +4,10 @@
 
 -export([install/2, ask/1]).
 
--type fuse_policy() :: {counter, pos_integer()}.
-
+-type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
+-type fuse_refresh() :: {reset, pos_integer()}.
 -type fuse_options() ::
-	[ {policy, fuse_policy()} ].
+	{fuse_strategy(), fuse_refresh()}.
 
 %% @doc install/2 adds a new fuse to the running system.
 %% A call `install(N, Os)' will add a new fuse under the name `N' with options given by `Os'. Note that the options must match
@@ -30,14 +30,11 @@ install(Name, Options) ->
 ask(Name) ->
     fuse_srv:ask(Name).
 
-options_ok([]) ->
-    ok;
-options_ok([{policy, Pol} | Opts]) ->
-   policy_ok(Pol),
-   options_ok(Opts);
+options_ok({{standard, MaxR, MaxT}, {reset, Time}})
+    when
+      is_integer(MaxR), MaxR >= 0,
+      is_integer(MaxT), MaxT >= 0,
+      is_integer(Time), Time >= 0 -> ok;
 options_ok(_) ->
-	error(badarg).
-   
-policy_ok({counter, N}) when N > 0 -> ok;
-policy_ok(_) ->
-	error(badarg).
+    error(badarg).
+

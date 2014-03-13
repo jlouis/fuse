@@ -2,7 +2,7 @@
 %%% @end
 -module(fuse).
 
--export([install/2]).
+-export([install/2, ask/1]).
 
 -type fuse_policy() :: {counter, pos_integer()}.
 
@@ -22,6 +22,14 @@ install(Name, Options) ->
     options_ok(Options),
     fuse_srv:install(Name, Options).
     
+%% @doc ask/1 queries the state of a fuse
+%% Given `ask(N)' we ask the fuse state of the name `N'
+%% @end
+-spec ask(Name) -> ok | blown | {error, no_such_fuse_name}
+  when Name :: atom().
+ask(Name) ->
+    fuse_srv:ask(Name).
+
 options_ok([]) ->
     ok;
 options_ok([{policy, Pol} | Opts]) ->

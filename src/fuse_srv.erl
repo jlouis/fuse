@@ -7,7 +7,7 @@
 -export([start_link/0]).
 
 %% Operational API
--export([install/2]).
+-export([install/2, ask/1]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
@@ -37,6 +37,19 @@ install(Name, Opts) ->
 	Fuse = init_state(Name, Opts),
 	gen_server:call(?MODULE, {install, Fuse}).
 
+%% @doc ask/1 asks about the current given fuse state
+%% The documentation is (@see fuse:ask/2)
+%% @end
+-spec ask(atom()) -> ok | blown | {error, no_such_fuse_name}.
+ask(Name) ->
+    try ets:lookup_element(?TAB, Name, 2) of
+        ok -> ok;
+        blown -> blown
+    catch
+        error:badarg ->
+            {error, no_such_fuse_name}
+    end.
+        
 %% @private
 init([]) ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),

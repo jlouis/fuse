@@ -7,7 +7,7 @@
 -export([start_link/0]).
 
 %% Operational API
--export([install/2, ask/1]).
+-export([install/2, ask/1, reset/1]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
@@ -53,7 +53,14 @@ ask(Name) ->
         error:badarg ->
             {error, no_such_fuse_name}
     end.
-        
+
+%% @doc reset/1 resets the fuse
+%% The documentation is (@see fuse:ask/2)
+%% @end
+-spec reset(atom()) -> ok | {error, no_such_fuse_name}.
+reset(Name) ->
+	gen_server:call(?MODULE, {reset, Name}).
+   
 %% @private
 init([]) ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
@@ -63,6 +70,13 @@ init([]) ->
 handle_call({install, #fuse { name = Name} = Fuse}, _From, #state { fuses = Fs } = State) ->
 	ok = mk_fuse_state(Name),
 	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
+handle_call({reset, Name}, _From, State) ->
+	%% For now, this function does nothing
+	{Res, State2} = with_fuse(Name, State, fun(F) -> {ok, F} end),
+	case Res of
+	  ok -> {reply, ok, State2};
+	  not_found -> {reply, {error, no_such_fuse}, State2}
+	end;
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
 	
@@ -91,3 +105,12 @@ mk_fuse_state(Name) ->
 
 init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
     #fuse { name = Name, max_r = MaxR, max_t = MaxT, reset = Reset }.
+
+with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
+    case lists:keytake(Name, #fuse.name, Fs) of
+        false -> {not_found, State};
+        {value, F, OtherFs} ->
+            {R, FF} = Fun(F),
+            {R, State#state { fuses = [FF | OtherFs] }}
+    end.
+

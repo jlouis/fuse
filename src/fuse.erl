@@ -2,7 +2,7 @@
 %%% @end
 -module(fuse).
 
--export([install/2, ask/1]).
+-export([install/2, ask/1, reset/1]).
 
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
 -type fuse_refresh() :: {reset, pos_integer()}.
@@ -29,6 +29,17 @@ install(Name, Options) ->
   when Name :: atom().
 ask(Name) ->
     fuse_srv:ask(Name).
+
+%% @doc reset/1 resets the internal counter of a given fuse
+%% Given `reset(N)` we ask the system to reset the fuse `N`
+%% @end
+-spec reset(Name) -> ok | {error, no_such_fuse_name}
+  when Name :: atom().
+reset(Name) ->
+    fuse_srv:reset(Name).
+
+%% Internal functions
+%% -----------------------
 
 options_ok({{standard, MaxR, MaxT}, {reset, Time}})
     when

@@ -9,27 +9,33 @@
 	installed = []
 }).
 
-fuses() -> [fuse_a, fuse_b, fuse_c, fuse_d].
+fuses() -> [phineas, ferb, candace, perry, doofenshmirtz].
+
+valid_fuse(F) ->
+	lists:member(F, fuses()).
 
 g_atom() ->
 	oneof([a,b,c,d,e,f]).
 
 g_name() ->
-	oneof(fuses()).
+	  oneof(fuses()).
 
 g_strategy() ->
-	{standard, 5, 100}.
+	fault(
+		{g_atom(), int(), int()},
+		{standard, int(), int()}
+	).
 
 g_refresh() ->
 	{reset, 60000}.
 	
 g_options() ->
-	return({g_strategy(), g_refresh()}).
+	{g_strategy(), g_refresh()}.
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
 install(Name, Opts) ->
-	fuse:install(Name, Opts).
+	catch fuse:install(Name, Opts).
 
 install_args(_S) ->
 	[g_name(), g_options()].
@@ -94,24 +100,25 @@ ask_neg_post(_S, _, Ret) ->
 	
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
-melt(Name) ->
-	fuse:melt(Name).
-	
-melt_pre(#state { installed = [] }) -> false;
-melt_pre(#state { installed = [_|_]}) -> true.
-
-melt_args(S) ->
-	[oneof(names(S))].
-
-melt_next(#state { installed = Is } = S, _V, [Name]) ->
-	{Name, Count} = lists:keyfind(Name, 1, Is),
-	S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) }.
-
-melt_post(_S, _, Ret) ->
-	eq(Ret, ok).
+%% melt(Name) ->
+%% 	fuse:melt(Name).
+%% 	
+%% melt_pre(#state { installed = [] }) -> false;
+%% melt_pre(#state { installed = [_|_]}) -> true.
+%% 
+%% melt_args(S) ->
+%% 	[oneof(names(S))].
+%% 
+%% melt_next(#state { installed = Is } = S, _V, [Name]) ->
+%% 	{Name, Count} = lists:keyfind(Name, 1, Is),
+%% 	S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) }.
+%% 
+%% melt_post(_S, _, Ret) ->
+%% 	eq(Ret, ok).
 
 %%% Property
 prop_model() ->
+    fault_rate(1, 10,
 	?FORALL(Cmds, commands(?MODULE, #state{}),
 	  begin
 	  	application:stop(fuse),
@@ -120,7 +127,7 @@ prop_model() ->
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(Cmds), R == ok))
-	  end).
+	  end)).
 
 %%% INTERNALS
 %%% ---------------------

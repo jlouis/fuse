@@ -17,10 +17,10 @@
 -record(state, { fuses = [] }).
 -record(fuse, {
 	name :: atom(),
-	max_r :: integer(),
-	max_t :: integer(),
-	reset :: integer(),
-	history = []
+	intensity :: integer(),
+	period :: integer(),
+	heal_time :: integer(),
+	restarts = []
 }).
 
 
@@ -67,7 +67,7 @@ reset(Name) ->
 -spec melt(Name, Ts) -> ok
     when Name :: atom(), Ts :: erlang:timestamp().
 melt(Name, Ts) ->
-	gen_server:cast(?MODULE, {melt, Name, Ts}).
+	gen_server:call(?MODULE, {melt, Name, Ts}).
     
 %% @private
 init([]) ->
@@ -75,8 +75,8 @@ init([]) ->
 	{ok, #state{}}.
 
 %% @private
-handle_call({install, #fuse { name = Name, max_r = MaxR} = Fuse}, _From, #state { fuses = Fs } = State) ->
-	ok = mk_fuse_state(Name, case MaxR of 0 -> blown; _K -> ok end),
+handle_call({install, #fuse { name = Name, intensity = I} = Fuse}, _From, #state { fuses = Fs } = State) ->
+	ok = mk_fuse_state(Name, case I of 0 -> blown; _K -> ok end),
 	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
 handle_call({reset, Name}, _From, State) ->
 	%% For now, this function does nothing
@@ -84,6 +84,12 @@ handle_call({reset, Name}, _From, State) ->
 	case Res of
 	  ok -> {reply, ok, State2};
 	  not_found -> {reply, {error, no_such_fuse}, State2}
+	end;
+handle_call({melt, Name, Now}, _From, State) ->
+	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
+	case Res of
+	  ok -> {reply, ok, State2};
+	  not_found -> {reply, ok, State2}
 	end;
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
@@ -112,7 +118,7 @@ mk_fuse_state(Name, State) ->
     ok.
 
 init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
-    #fuse { name = Name, max_r = MaxR, max_t = MaxT, reset = Reset }.
+    #fuse { name = Name, intensity = MaxR, period = MaxT, heal_time = Reset }.
 
 with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
     case lists:keytake(Name, #fuse.name, Fs) of
@@ -122,3 +128,48 @@ with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
             {R, State#state { fuses = [FF | OtherFs] }}
     end.
 
+add_restart(Now, #fuse { intensity = I, period = Period, restarts = R } = Fuse) ->
+    R1 = add_restart([Now | R], Now, Period),
+    NewF = Fuse#fuse { restarts = R1 },
+    case length(R1) of
+        CurI when CurI =< I ->
+            {ok, NewF};
+            _ ->
+              blow(Fuse),
+              {ok, NewF}
+    end.
+ 
+
+add_restart([R|Restarts], Now, Period) ->
+    case in_period(R, Now, Period) of
+        true ->
+            [R|add_restart(Restarts, Now, Period)];
+        false ->
+            []
+    end;
+add_restart([], _, _) ->
+    [].
+    
+in_period(Time, Now, Period) ->
+    case difference(Time, Now) of
+        T when T > Period -> false;
+        _ -> true
+    end.
+
+%%
+%% Time = {MegaSecs, Secs, MicroSecs} (NOTE: MicroSecs is ignored)
+%% Calculate the time elapsed in seconds between two timestamps.
+%% If MegaSecs is equal just subtract Secs.
+%% Else calculate the Mega difference and add the Secs difference,
+%% note that Secs difference can be negative, e.g.
+%%      {827, 999999, 676} diff {828, 1, 653753} == > 2 secs.
+%%
+difference({TimeM, TimeS, _}, {CurM, CurS, _}) when CurM > TimeM ->
+    ((CurM - TimeM) * 1000000) + (CurS - TimeS);
+difference({_, TimeS, _}, {_, CurS, _}) ->
+    CurS - TimeS.
+
+blow(#fuse { name = Name }) ->
+    ets:insert(?TAB, {Name, blown}).
+
+              

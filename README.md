@@ -64,7 +64,7 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 	  when Result :: term().
 
 	%% To use this function:
-	case fuse:run(fun exec/0) of
+	case fuse:run(Name, fun exec/0) of
 		{ok, Result} -> …;
 		blown -> …
 	end,
@@ -94,6 +94,7 @@ To run the EQC tests, you have to
 And then in the Erlang console, you can execute
 
 	make:all([load]).
+	error_logger:tty(false). % Shut up the error logger while running tests
 	eqc:module(fuse_eqc).
 
 I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests.

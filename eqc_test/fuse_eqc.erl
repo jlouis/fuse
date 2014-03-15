@@ -23,7 +23,7 @@ g_name() ->
 g_strategy() ->
 	fault(
 		{g_atom(), int(), int()},
-		{standard, int(), int()}
+		{standard, 60, int()}
 	).
 
 g_refresh() ->
@@ -79,7 +79,7 @@ reset_post(S, [Name], Ret) ->
 
 is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
 
-%%% ask_pos/1 asks about the state of a fuse that exists
+%%% ask/1 asks about the state of a fuse that exists
 %%% ---------------------
 ask(Name) ->
 	fuse:ask(Name).
@@ -98,6 +98,18 @@ ask_post(S, [Name], Ret) ->
 	        eq(Ret, {error, no_such_fuse_name})
 	end.
 
+%%% run/1 runs a function (thunk) on the circuit breaker
+%%% ---------------------
+run(Name, _Result, Fun) ->
+	fuse:run(Name, Fun).
+	
+run_pre(S) ->
+	has_fuses_installed(S).
+
+run_args(S) ->
+    ?LET({N, Result}, {oneof(installed_names(S)), oneof([ok, melt])},
+      [N, Result, function0({Result, int()})] ).
+
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
 melt(Name) ->
@@ -106,8 +118,8 @@ melt(Name) ->
 melt_pre(#state { installed = [] }) -> false;
 melt_pre(#state { installed = [_|_]}) -> true.
 
-%% melt_args(S) ->
-%% 	[oneof(installed_names(S))].
+melt_args(S) ->
+ 	[oneof(installed_names(S))].
 
 melt_next(#state { installed = Is } = S, _V, [Name]) ->
 	{Name, Count} = lists:keyfind(Name, 1, Is),
@@ -150,3 +162,5 @@ count(Name, #state { installed = Inst }) ->
 count_state(0) -> blown;
 count_state(_N) -> ok.
 
+has_fuses_installed(#state { installed = [] }) -> false;
+has_fuses_installed(#state { installed = [_|_]}) -> true.

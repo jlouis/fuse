@@ -6,7 +6,8 @@
 	ask/1,
 	install/2,
 	melt/1, melt/2,
-	reset/1
+	reset/1,
+	run/2
 ]).
 
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
@@ -27,6 +28,27 @@ install(Name, Options) ->
     options_ok(Options),
     fuse_srv:install(Name, Options).
     
+%% @doc run/2 runs a thunk under a given fuse
+%% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'
+%% @end
+-spec run(Name, fun (() -> {ok, Result} | {melt, Result}) ) -> {ok, Result} | blown | {error, no_such_fuse_name}
+    when
+      Name :: atom(),
+      Result :: any().
+run(Name, Func) ->
+    case ask(Name) of
+        blown -> blown;
+        ok ->
+          case Func() of
+              {ok, Result} -> {ok, Result};
+              {melt, Result} ->
+                  melt(Name),
+                  {ok, Result}
+          end;
+        {error, Reason} ->
+          {error, Reason}
+    end.
+
 %% @doc ask/1 queries the state of a fuse
 %% Given `ask(N)' we ask the fuse state of the name `N'
 %% @end
@@ -36,7 +58,7 @@ ask(Name) ->
     fuse_srv:ask(Name).
 
 %% @doc reset/1 resets the internal counter of a given fuse
-%% Given `reset(N)` we ask the system to reset the fuse `N`
+%% Given `reset(N)' we ask the system to reset the fuse `N'
 %% @end
 -spec reset(Name) -> ok | {error, no_such_fuse_name}
   when Name :: atom().
@@ -44,7 +66,10 @@ reset(Name) ->
     fuse_srv:reset(Name).
 
 %% @doc melt/1 melts a fuse a little bit
-%% A call to `melt(N)' will melt fuse `N'
+%% A call to `melt(N)' will melt fuse `N'. This call always returns `ok` and it is currently implemented synchronously.
+%% We don't return an error case since we can then make this call asynchronous in a future system release. The idea
+%% is that melting is on the fast-path and shouldn't affect the standard code path.
+%% @end
 -spec melt(Name) -> ok
   when Name :: atom().
 melt(Name) ->

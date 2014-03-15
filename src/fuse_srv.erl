@@ -61,14 +61,22 @@ ask(Name) ->
 reset(Name) ->
 	gen_server:call(?MODULE, {reset, Name}).
    
+%% @doc melt/2 melts the fuse at a given point in time
+%% For documentation, (@see fuse:melt/2)
+%% @end
+-spec melt(Name, Ts) -> ok
+    when Name :: atom(), Ts :: erlang:timestamp().
+melt(Name, Ts) ->
+	gen_server:cast(?MODULE, {melt, Name, Ts}).
+    
 %% @private
 init([]) ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
 	{ok, #state{}}.
 
 %% @private
-handle_call({install, #fuse { name = Name} = Fuse}, _From, #state { fuses = Fs } = State) ->
-	ok = mk_fuse_state(Name),
+handle_call({install, #fuse { name = Name, max_r = MaxR} = Fuse}, _From, #state { fuses = Fs } = State) ->
+	ok = mk_fuse_state(Name, case MaxR of 0 -> blown; _K -> ok end),
 	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
 handle_call({reset, Name}, _From, State) ->
 	%% For now, this function does nothing
@@ -99,8 +107,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%% ------
 
-mk_fuse_state(Name) ->
-    true = ets:insert(?TAB, {Name, ok}),
+mk_fuse_state(Name, State) ->
+    true = ets:insert(?TAB, {Name, State}),
     ok.
 
 init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->

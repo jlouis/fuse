@@ -95,6 +95,11 @@ And then in the Erlang console, you can execute
 
 	make:all([load]).
 	eqc:module(fuse_eqc).
+
+I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests.
 	
+# Subtle Errors found by EQC
+
+* If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
 
 

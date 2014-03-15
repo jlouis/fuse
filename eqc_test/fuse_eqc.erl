@@ -9,7 +9,7 @@
 	installed = []
 }).
 
-fuses() -> [phineas, ferb, candace, perry, doofenshmirtz].
+fuses() -> [phineas, ferb, candace, perry, heinz].
 
 valid_fuse(F) ->
 	lists:member(F, fuses()).

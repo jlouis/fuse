@@ -5,8 +5,7 @@
 	{registered, [fuse_srv]},
 	{applications, [
 		kernel,
-		stdlib,
-		sasl
+		stdlib
 	]},
 	{mod, {fuse_app, []}},
 	{env, []}

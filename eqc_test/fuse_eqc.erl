@@ -35,18 +35,31 @@ g_options() ->
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
 install(Name, Opts) ->
-	catch fuse:install(Name, Opts).
+	try fuse:install(Name, Opts) of
+		ok -> ok
+	catch
+		error:badarg ->
+			badarg
+	end.
 
 install_args(_S) ->
 	[g_name(), g_options()].
 
 install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
-	{{standard, Count, _}, _} = Opts,
-	T = {Name, Count},
-	S#state { installed = lists:keystore(Name, 1, Is, T) }.
+	case valid_opts(Opts) of
+	    false ->
+	        S;
+	    true ->
+	        {{_, Count, _}, _} = Opts,
+	        T = {Name, Count},
+	        S#state { installed = lists:keystore(Name, 1, Is, T) }
+	end.
 
-install_post(_S, _, R) ->
-	eq(R, ok).
+install_post(_S, [_Name, Opts], R) ->
+	case valid_opts(Opts) of
+	    true -> eq(R, ok);
+	    false -> eq(R, badarg)
+	end.
 
 %%% reset/1 resets a fuse back to its policy standard
 reset(Name) ->
@@ -56,65 +69,52 @@ reset_pre(#state { installed = [] }) -> false;
 reset_pre(#state { installed = [_|_] }) -> true.
 
 reset_args(S) ->
-	[oneof(names(S))].
+	[oneof(installed_names(S))].
 
-reset_post(_S, _, Ret) ->
-	eq(Ret, ok).
+reset_post(S, [Name], Ret) ->
+    case is_installed(Name, S) of
+        true -> eq(Ret, ok);
+        false -> eq(Ret, {error, no_such_fuse_name})
+    end.
+
+is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
 
 %%% ask_pos/1 asks about the state of a fuse that exists
 %%% ---------------------
-ask_pos(Name) ->
+ask(Name) ->
 	fuse:ask(Name).
 	
-ask_pos_pre(#state { installed = [] }) -> false;
-ask_pos_pre(#state { installed = [_|_]}) -> true.
+ask_pre(#state { installed = [] }) -> false;
+ask_pre(#state { installed = [_|_]}) -> true.
 
-ask_pos_args(S) ->
-	[oneof(names(S))].
-
-count(Name, #state { installed = Inst }) ->
-	{Name, Count} = lists:keyfind(Name, 1, Inst),
-	Count.
-
-count_state(0) -> blown;
-count_state(_N) -> ok.
-
-ask_pos_post(S, [Name], Ret) ->
-	eq(Ret, count_state(count(Name, S))).
+ask_args(_S) ->
+	[g_name()].
 	
-%%% ask_neg/1 asks about the state of a fuse which does not exist
-ask_neg(Name) ->
-	fuse:ask(Name).
-	
-ask_neg_pre(S) ->
-	case fuses() -- names(S) of
-	    [] -> false;
-	    [_|_] -> true
+ask_post(S, [Name], Ret) ->
+	case is_installed(Name, S) of
+	    true ->
+	        eq(Ret, count_state(count(Name, S)));
+	    false ->
+	        eq(Ret, {error, no_such_fuse_name})
 	end.
-	
-ask_neg_args(S) ->
-	[oneof(fuses() -- names(S))].
-	
-ask_neg_post(_S, _, Ret) ->
-	eq(Ret, {error, no_such_fuse_name}).
-	
+
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
-%% melt(Name) ->
-%% 	fuse:melt(Name).
-%% 	
-%% melt_pre(#state { installed = [] }) -> false;
-%% melt_pre(#state { installed = [_|_]}) -> true.
-%% 
+melt(Name) ->
+	fuse:melt(Name).
+	
+melt_pre(#state { installed = [] }) -> false;
+melt_pre(#state { installed = [_|_]}) -> true.
+
 %% melt_args(S) ->
-%% 	[oneof(names(S))].
-%% 
-%% melt_next(#state { installed = Is } = S, _V, [Name]) ->
-%% 	{Name, Count} = lists:keyfind(Name, 1, Is),
-%% 	S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) }.
-%% 
-%% melt_post(_S, _, Ret) ->
-%% 	eq(Ret, ok).
+%% 	[oneof(installed_names(S))].
+
+melt_next(#state { installed = Is } = S, _V, [Name]) ->
+	{Name, Count} = lists:keyfind(Name, 1, Is),
+	S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) }.
+
+melt_post(_S, _, Ret) ->
+	eq(Ret, ok).
 
 %%% Property
 prop_model() ->
@@ -132,5 +132,21 @@ prop_model() ->
 %%% INTERNALS
 %%% ---------------------
 
-names(#state { installed = Is }) ->
+%% Pick amongst the installed names
+installed_names(#state { installed = Is }) ->
 	[N || {N, _} <- Is].
+
+%% Determine if opts is valid
+valid_opts({{standard, K, R}, {reset, T}})
+    when K >= 0, R >= 0, T >= 0 ->
+	true;
+valid_opts(_) ->
+	false.
+	
+count(Name, #state { installed = Inst }) ->
+	{Name, Count} = lists:keyfind(Name, 1, Inst),
+	Count.
+
+count_state(0) -> blown;
+count_state(_N) -> ok.
+

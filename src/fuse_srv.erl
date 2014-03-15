@@ -7,7 +7,7 @@
 -export([start_link/0]).
 
 %% Operational API
--export([install/2, ask/1, reset/1]).
+-export([install/2, ask/1, reset/1, melt/2]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).

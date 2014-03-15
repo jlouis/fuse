@@ -2,7 +2,12 @@
 %%% @end
 -module(fuse).
 
--export([install/2, ask/1, reset/1]).
+-export([
+	ask/1,
+	install/2,
+	melt/1, melt/2,
+	reset/1
+]).
 
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
 -type fuse_refresh() :: {reset, pos_integer()}.
@@ -37,6 +42,18 @@ ask(Name) ->
   when Name :: atom().
 reset(Name) ->
     fuse_srv:reset(Name).
+
+%% @doc melt/1 melts a fuse a little bit
+%% A call to `melt(N)' will melt fuse `N'
+-spec melt(Name) -> ok
+  when Name :: atom().
+melt(Name) ->
+	melt(Name, os:timestamp()).
+	
+%% melt/2 allows to call with a specific timestamp
+%% @private
+melt(Name, Ts) ->
+	fuse_srv:melt(Name, Ts).
 
 %% Internal functions
 %% -----------------------

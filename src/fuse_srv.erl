@@ -83,7 +83,7 @@ handle_call({reset, Name}, _From, State) ->
 	{Res, State2} = with_fuse(Name, State, fun(F) -> {ok, F} end),
 	case Res of
 	  ok -> {reply, ok, State2};
-	  not_found -> {reply, {error, no_such_fuse}, State2}
+	  not_found -> {reply, {error, no_such_fuse_name}, State2}
 	end;
 handle_call({melt, Name, Now}, _From, State) ->
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),

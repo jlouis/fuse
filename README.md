@@ -56,7 +56,10 @@ This queries the fuse for its state and lets you handle the case where it is cur
 	    …
 	end,
 	
-The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will let a single request through again to make sure it works like expected.
+The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will let a single request through again to make sure it works like expected. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There is two reasons for this:
+
+* It is overload-safe against the fuse code. Even if processes can outrun the fuse, it cannot build up queue due to this.
+* It is on the slow-path. When we melt, we are in a bad situation. So waiting a bit more before given an answer back is probably not going to be a problem. We picked this choice explicitly in order to make sure it works under load.
 
 Another way to run the fuse is to use a wrapper function. Suppose you have a function with the following spec:
 
@@ -98,9 +101,18 @@ And then in the Erlang console, you can execute
 	eqc:module(fuse_eqc).
 
 I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests.
+
+## EQC Test harness features:
+
+* Tests the fuse API in all cases with positive testing
+* Uses negative testing to make sure the `install/2` command rejects wrong options correctly.
+* Uses sequential testing to make sure command invocation is sane.
+* Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time
 	
 # Subtle Errors found by EQC
 
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
+* Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, no_such_fuse_name}`. Sequential tests did not find this particular interleaving problem.
+
 
 

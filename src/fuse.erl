@@ -66,9 +66,7 @@ reset(Name) ->
     fuse_srv:reset(Name).
 
 %% @doc melt/1 melts a fuse a little bit
-%% A call to `melt(N)' will melt fuse `N'. This call always returns `ok` and it is currently implemented synchronously.
-%% We don't return an error case since we can then make this call asynchronous in a future system release. The idea
-%% is that melting is on the fast-path and shouldn't affect the standard code path.
+%% A call to `melt(N)' will melt fuse `N'. This call always returns `ok' and it is currently implemented synchronously.
 %% @end
 -spec melt(Name) -> ok
   when Name :: atom().

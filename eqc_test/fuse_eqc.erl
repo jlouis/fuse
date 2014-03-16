@@ -3,6 +3,9 @@
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 
+-include_lib("pulse/include/pulse.hrl").
+-include_lib("pulse_otp/include/pulse_otp.hrl").
+
 -compile(export_all).
 
 -record(state, {
@@ -20,9 +23,17 @@ g_atom() ->
 g_name() ->
 	  oneof(fuses()).
 
+g_neg_int() ->
+	?LET(N, nat(),
+		-(N+1)).
+
 g_strategy() ->
 	fault(
-		{g_atom(), int(), int()},
+		{frequency([
+			{1, {g_atom(), int(), int()}},
+			{1, {standard, g_neg_int(), int()}},
+			{1, {standard, int(), g_neg_int()}}
+		])},
 		{standard, 60, int()}
 	).
 
@@ -31,6 +42,9 @@ g_refresh() ->
 	
 g_options() ->
 	{g_strategy(), g_refresh()}.
+
+initial_state() ->
+	#state{}.
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
@@ -100,15 +114,33 @@ ask_post(S, [Name], Ret) ->
 
 %%% run/1 runs a function (thunk) on the circuit breaker
 %%% ---------------------
-run(Name, _Result, Fun) ->
+run(Name, _Result, _Return, Fun) ->
 	fuse:run(Name, Fun).
 	
 run_pre(S) ->
 	has_fuses_installed(S).
 
 run_args(S) ->
-    ?LET({N, Result}, {oneof(installed_names(S)), oneof([ok, melt])},
-      [N, Result, function0({Result, int()})] ).
+    ?LET({N, Result, Return}, {oneof(installed_names(S)), oneof([ok, melt]), int()},
+      [N, Result, Return, function0({Result, Return})] ).
+      
+run_next(S, _V, [_Name, ok, _, _]) -> S;
+run_next(#state { installed = Is} = S, _V, [Name, melt, _, _]) ->
+	case lists:keyfind(Name, 1, Is) of
+	    {Name, Count} -> S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) };
+	    false -> S
+	end.
+
+run_post(S, [Name, _Result, Return, _], Ret) ->
+	case is_installed(Name, S) of
+	    true ->
+	        case count_state(count(Name, S)) of
+	            ok -> eq(Ret, {ok, Return});
+	            blown -> eq(Ret, blown)
+	        end;
+	    false ->
+	        eq(Ret, {error, no_such_fuse_name})
+	end.
 
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
@@ -122,24 +154,58 @@ melt_args(S) ->
  	[oneof(installed_names(S))].
 
 melt_next(#state { installed = Is } = S, _V, [Name]) ->
-	{Name, Count} = lists:keyfind(Name, 1, Is),
-	S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) }.
+	case lists:keyfind(Name, 1, Is) of
+	    {Name, Count} -> S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) };
+	    false -> S
+	end.
 
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
-%%% Property
-prop_model() ->
+%%% Properties
+
+%% Sequential test
+prop_model_seq() ->
     fault_rate(1, 10,
 	?FORALL(Cmds, commands(?MODULE, #state{}),
 	  begin
-	  	application:stop(fuse),
-	  	{ok, _} = application:ensure_all_started(fuse),
+	  	cleanup(),
 	  	{H, S, R} = run_commands(?MODULE, Cmds),
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(Cmds), R == ok))
 	  end)).
+
+prop_model_par() ->
+    fault_rate(1, 10,
+      ?FORALL(Repetitions, ?SHRINK(1, [10]),
+	?FORALL(ParCmds, parallel_commands(?MODULE, #state{}),
+	  ?ALWAYS(Repetitions,
+	  begin
+	  	cleanup(),
+	  	{H, S, R} = run_parallel_commands(?MODULE, ParCmds),
+	  	?WHENFAIL(
+	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
+	  		aggregate(command_names(ParCmds), R == ok))
+	  end)))).
+
+prop_model_pulse() ->
+  ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),
+         	fun() -> erlang:system_flag(schedulers_online, N) end end,
+  ?FORALL(Cmds, parallel_commands(?MODULE),
+  ?PULSE(HSR={_, _, R},
+    begin
+      cleanup(),
+      run_parallel_commands(?MODULE, Cmds)
+    end,
+    aggregate(command_names(Cmds),
+    pretty_commands(?MODULE, Cmds, HSR,
+      R == ok))))).
+
+cleanup() ->
+  error_logger:tty(false),
+  (catch application:stop(fuse)),
+  ok = application:start(fuse).
 
 %%% INTERNALS
 %%% ---------------------
@@ -164,3 +230,35 @@ count_state(_N) -> ok.
 
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
+
+
+%% PULSE instrumentation,
+the_prop() -> prop_model_pulse().
+
+test({N, h})   -> test({N * 60, min});
+test({N, min}) -> test({N * 60, sec});
+test({N, s})   -> test({N, sec});
+test({N, sec}) ->
+  quickcheck(eqc:testing_time(N, the_prop()));
+test(N) when is_integer(N) ->
+  quickcheck(numtests(N, the_prop())).
+
+test() -> test(100).
+
+recheck() -> eqc:recheck(the_prop()).
+check()   -> eqc:check(the_prop()).
+check(CE) -> eqc:check(the_prop(), CE).
+
+verbose()   -> eqc:check(eqc_statem:show_states(the_prop())).
+verbose(CE) -> eqc:check(eqc_statem:show_states(the_prop(), CE)).
+
+pulse_instrument() ->
+  [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ].
+
+pulse_instrument(File) ->
+  {ok, Mod} = compile:file(File, [{d, 'PULSE', true},
+                                  {parse_transform, pulse_instrument},
+                                  {pulse_side_effect, [{ets, '_', '_'}]}]),
+  code:purge(Mod),
+  code:load_file(Mod),
+  Mod.

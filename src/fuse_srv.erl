@@ -3,6 +3,10 @@
 -module(fuse_srv).
 -behaviour(gen_server).
 
+-ifdef(PULSE).
+-include_lib("pulse_otp/include/pulse_otp.hrl").
+-endif.
+
 %% Lifetime API
 -export([start_link/0]).
 

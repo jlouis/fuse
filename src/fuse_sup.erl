@@ -3,6 +3,10 @@
 -module(fuse_sup).
 -behaviour(supervisor).
 
+-ifdef(PULSE).
+-include_lib("pulse_otp/include/pulse_otp.hrl").
+-endif.
+
 -export([start_link/0]).
 
 %% Callbacks

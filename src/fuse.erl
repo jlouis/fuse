@@ -2,6 +2,10 @@
 %%% @end
 -module(fuse).
 
+-ifdef(PULSE).
+-include_lib("pulse_otp/include/pulse_otp.hrl").
+-endif.
+
 -export([
 	ask/1,
 	install/2,

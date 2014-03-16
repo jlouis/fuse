@@ -1,2 +1,5 @@
 console:
-	erl -pa ../ebin
+	erl -pz ../ebin
+
+clean:
+	rm -f *.beam

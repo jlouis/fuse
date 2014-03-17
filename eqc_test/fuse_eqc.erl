@@ -9,9 +9,61 @@
 -compile(export_all).
 
 -record(state, {
+	time = g_initial_time(),
 	installed = []
 }).
 
+%% Time handling
+
+%% divrem/2 returns the integer division and remainder
+divrem(X, Y) ->  {X div Y, X rem Y}.
+
+%% Generators of usecs, seconds, and megaseconds. Defaults to simpler versions.
+g_usecs( ) ->
+	default(0, choose(0, 1000000-1)).
+	
+g_secs() ->
+	default(0, choose(0, 1000000-1)).
+	
+g_mega() ->
+	frequency([
+		{1, return(1)},
+		{1, nat()},
+		{200, return(0)}
+	]).
+
+%% Produce an initial time point, based on the above generators
+g_initial_time() ->
+    ?LET({Mega, Secs, Micros}, {nat(), g_secs(), g_usecs()},
+        {1300 + Mega, Secs, Micros}).
+
+%% Produce a time interval suitable for addition
+g_add() ->
+    {g_mega(), g_secs(), g_usecs()}.
+
+%% Add two time points
+time_add({M1, S1, U1}, {M2, S2, U2}) ->
+    {UCarry, Us} = divrem(U1 + U2, 1000*1000),
+    {MCarry, S} = divrem(S1 + S2 + UCarry, 1000*1000),
+    M = M1 + M2 + MCarry,
+    {M, S, Us}.
+    
+%% Obtain the microsecond count of two time points
+micros({Megas, Secs, Us}) ->
+    S = Megas * 1000 * 1000 + Secs,
+    Us + S * 1000 * 1000.
+    
+%% Test the correctness of the time model by running an addition property over it
+prop_add_correct() ->
+	?FORALL({X, Y}, {oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()])},
+		begin
+			Way1 = micros(time_add(X, Y)),
+			Way2 = micros(X) + micros(Y),
+			equals(Way1, Way2)
+		end
+	).
+
+%% API Generators
 fuses() -> [phineas, ferb, candace, perry, heinz].
 
 valid_fuse(F) ->

@@ -9,7 +9,7 @@
 -compile(export_all).
 
 -record(state, {
-	time = g_initial_time(),
+	time = undefined,
 	installed = []
 }).
 
@@ -63,6 +63,33 @@ prop_add_correct() ->
 		end
 	).
 
+%% Time forms a group
+prop_add_commut() ->
+	?FORALL({X, Y}, {oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()])},
+		begin
+			equals(time_add(X, Y), time_add(Y, X))
+		end
+	).
+
+prop_add_assoc() ->
+	?FORALL({X, Y, Z}, {oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()])},
+		begin
+			A = time_add(time_add(X, Y), Z),
+			B = time_add(X, time_add(Y, Z)),
+			equals(A, B)
+		end
+	).
+
+prop_add_identity() ->
+	?FORALL({X}, {oneof([g_add(), g_initial_time()])},
+		begin
+			conjunction([
+				{right_add, equals(X, time_add(X, {0, 0, 0}))},
+				{left_add, equals(X, time_add({0, 0, 0}, X))}
+			])
+		end
+	).
+
 %% API Generators
 fuses() -> [phineas, ferb, candace, perry, heinz].
 
@@ -95,8 +122,18 @@ g_refresh() ->
 g_options() ->
 	{g_strategy(), g_refresh()}.
 
-initial_state() ->
-	#state{}.
+g_initial_state() ->
+    ?LET(T, g_initial_time(),
+    	#state { time = T }).
+
+%%% advance_time/1 is model internal and advances the time point in the model
+advance_time(_Add) -> ok.
+
+advance_time_args(_S) ->
+	[g_add()].
+	
+advance_time_next(#state { time = T } = S, _V, [Add]) ->
+	S#state { time = time_add(T, Add) }.
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
@@ -219,19 +256,21 @@ melt_post(_S, _, Ret) ->
 %% Sequential test
 prop_model_seq() ->
     fault_rate(1, 10,
-	?FORALL(Cmds, commands(?MODULE, #state{}),
+    	?FORALL(St, g_initial_state(),
+	?FORALL(Cmds, commands(?MODULE, St),
 	  begin
 	  	cleanup(),
 	  	{H, S, R} = run_commands(?MODULE, Cmds),
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(Cmds), R == ok))
-	  end)).
+	  end))).
 
 prop_model_par() ->
     fault_rate(1, 10,
-      ?FORALL(Repetitions, ?SHRINK(1, [10]),
-	?FORALL(ParCmds, parallel_commands(?MODULE, #state{}),
+     ?FORALL(St, g_initial_state(),
+     ?FORALL(Repetitions, ?SHRINK(1, [10]),
+	?FORALL(ParCmds, parallel_commands(?MODULE, St),
 	  ?ALWAYS(Repetitions,
 	  begin
 	  	cleanup(),
@@ -239,12 +278,13 @@ prop_model_par() ->
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(ParCmds), R == ok))
-	  end)))).
+	  end))))).
 
 x_prop_model_pulse() ->
   ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),
          	fun() -> erlang:system_flag(schedulers_online, N) end end,
-  ?FORALL(Cmds, parallel_commands(?MODULE),
+  ?FORALL(St, g_initial_state(),
+  ?FORALL(Cmds, parallel_commands(?MODULE, St),
   ?PULSE(HSR={_, _, R},
     begin
       cleanup(),
@@ -252,7 +292,7 @@ x_prop_model_pulse() ->
     end,
     aggregate(command_names(Cmds),
     pretty_commands(?MODULE, Cmds, HSR,
-      R == ok))))).
+      R == ok)))))).
 
 cleanup() ->
   error_logger:tty(false),

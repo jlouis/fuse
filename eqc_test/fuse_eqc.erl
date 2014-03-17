@@ -82,8 +82,8 @@ reset(Name) ->
 reset_pre(#state { installed = [] }) -> false;
 reset_pre(#state { installed = [_|_] }) -> true.
 
-reset_args(S) ->
-	[oneof(installed_names(S))].
+reset_args(_S) ->
+	[g_name()].
 
 reset_post(S, [Name], Ret) ->
     case is_installed(Name, S) of
@@ -189,7 +189,7 @@ prop_model_par() ->
 	  		aggregate(command_names(ParCmds), R == ok))
 	  end)))).
 
-prop_model_pulse() ->
+x_prop_model_pulse() ->
   ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),
          	fun() -> erlang:system_flag(schedulers_online, N) end end,
   ?FORALL(Cmds, parallel_commands(?MODULE),
@@ -233,7 +233,7 @@ has_fuses_installed(#state { installed = [_|_]}) -> true.
 
 
 %% PULSE instrumentation,
-the_prop() -> prop_model_pulse().
+the_prop() -> x_prop_model_pulse().
 
 test({N, h})   -> test({N * 60, min});
 test({N, min}) -> test({N * 60, sec});

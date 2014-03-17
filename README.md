@@ -106,13 +106,16 @@ I am deliberately keeping them out of the travis build due to the necessity of E
 
 * Tests the fuse API in all cases with positive testing
 * Uses negative testing to make sure the `install/2` command rejects wrong options correctly.
+* Uses negative testing to make sure return values are correct for every other command
 * Uses sequential testing to make sure command invocation is sane.
 * Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time
-	
+* Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct
+
 # Subtle Errors found by EQC
 
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
-* Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, no_such_fuse_name}`. Sequential tests did not find this particular interleaving problem.
+* Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, no_such_fuse_name}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.
+
 
 
 

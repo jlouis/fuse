@@ -233,16 +233,16 @@ run_post(S, [Name, _Result, Return, _], Ret) ->
 
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
-melt(Name) ->
-	fuse:melt(Name).
+melt(Name, Ts) ->
+	fuse:melt(Name, Ts).
 	
 melt_pre(#state { installed = [] }) -> false;
 melt_pre(#state { installed = [_|_]}) -> true.
 
-melt_args(S) ->
- 	[oneof(installed_names(S))].
+melt_args(#state { time = T } = S) ->
+ 	[oneof(installed_names(S)), T].
 
-melt_next(#state { installed = Is } = S, _V, [Name]) ->
+melt_next(#state { installed = Is } = S, _V, [Name, _]) ->
 	case lists:keyfind(Name, 1, Is) of
 	    {Name, Count} -> S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) };
 	    false -> S

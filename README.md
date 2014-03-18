@@ -111,6 +111,10 @@ I am deliberately keeping them out of the travis build due to the necessity of E
 * Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time
 * Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct
 
+Furthermore:
+
+* The EQC Test harness tests its internal consistency of time handling by using properties to test its own model for correctness.
+
 # Subtle Errors found by EQC
 
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.

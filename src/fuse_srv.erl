@@ -48,20 +48,20 @@ install(Name, Opts) ->
 %% @doc ask/1 asks about the current given fuse state
 %% The documentation is (@see fuse:ask/2)
 %% @end
--spec ask(atom()) -> ok | blown | {error, no_such_fuse_name}.
+-spec ask(atom()) -> ok | blown | {error, not_found}.
 ask(Name) ->
     try ets:lookup_element(?TAB, Name, 2) of
         ok -> ok;
         blown -> blown
     catch
         error:badarg ->
-            {error, no_such_fuse_name}
+            {error, not_found}
     end.
 
 %% @doc reset/1 resets the fuse
 %% The documentation is (@see fuse:ask/2)
 %% @end
--spec reset(atom()) -> ok | {error, no_such_fuse_name}.
+-spec reset(atom()) -> ok | {error, not_found}.
 reset(Name) ->
 	gen_server:call(?MODULE, {reset, Name}).
    
@@ -87,7 +87,7 @@ handle_call({reset, Name}, _From, State) ->
 	{Res, State2} = with_fuse(Name, State, fun(F) -> {ok, F} end),
 	case Res of
 	  ok -> {reply, ok, State2};
-	  not_found -> {reply, {error, no_such_fuse_name}, State2}
+	  not_found -> {reply, {error, not_found}, State2}
 	end;
 handle_call({melt, Name, Now}, _From, State) ->
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),

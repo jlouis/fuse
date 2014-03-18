@@ -177,7 +177,7 @@ reset_args(_S) ->
 reset_post(S, [Name], Ret) ->
     case is_installed(Name, S) of
         true -> eq(Ret, ok);
-        false -> eq(Ret, {error, no_such_fuse_name})
+        false -> eq(Ret, {error, not_found})
     end.
 
 is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
@@ -198,7 +198,7 @@ ask_post(S, [Name], Ret) ->
 	    true ->
 	        eq(Ret, count_state(count(Name, S)));
 	    false ->
-	        eq(Ret, {error, no_such_fuse_name})
+	        eq(Ret, {error, not_found})
 	end.
 
 %%% run/1 runs a function (thunk) on the circuit breaker
@@ -228,7 +228,7 @@ run_post(S, [Name, _Result, Return, _], Ret) ->
 	            blown -> eq(Ret, blown)
 	        end;
 	    false ->
-	        eq(Ret, {error, no_such_fuse_name})
+	        eq(Ret, {error, not_found})
 	end.
 
 %%% melt/1 melts the fuse a little bit

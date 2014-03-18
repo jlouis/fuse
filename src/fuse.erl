@@ -35,7 +35,7 @@ install(Name, Options) ->
 %% @doc run/2 runs a thunk under a given fuse
 %% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'
 %% @end
--spec run(Name, fun (() -> {ok, Result} | {melt, Result}) ) -> {ok, Result} | blown | {error, no_such_fuse_name}
+-spec run(Name, fun (() -> {ok, Result} | {melt, Result}) ) -> {ok, Result} | blown | {error, not_found}
     when
       Name :: atom(),
       Result :: any().
@@ -56,7 +56,7 @@ run(Name, Func) ->
 %% @doc ask/1 queries the state of a fuse
 %% Given `ask(N)' we ask the fuse state of the name `N'
 %% @end
--spec ask(Name) -> ok | blown | {error, no_such_fuse_name}
+-spec ask(Name) -> ok | blown | {error, not_found}
   when Name :: atom().
 ask(Name) ->
     fuse_srv:ask(Name).
@@ -64,7 +64,7 @@ ask(Name) ->
 %% @doc reset/1 resets the internal counter of a given fuse
 %% Given `reset(N)' we ask the system to reset the fuse `N'
 %% @end
--spec reset(Name) -> ok | {error, no_such_fuse_name}
+-spec reset(Name) -> ok | {error, not_found}
   when Name :: atom().
 reset(Name) ->
     fuse_srv:reset(Name).

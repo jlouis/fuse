@@ -11,7 +11,7 @@
 	install/2,
 	melt/1, melt/2,
 	reset/1,
-	run/2
+	run/2, run/3
 ]).
 
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
@@ -39,14 +39,23 @@ install(Name, Options) ->
     when
       Name :: atom(),
       Result :: any().
-run(Name, Func) ->
+run(Name, Func) -> run(Name, os:timestamp(), Func).
+
+%% run/3 runs a thunk at a given time stamp
+%% @private
+-spec run(Name, Timestamp, fun(() -> {ok, Result} | {melt, Result}) ) -> {ok, Result} | blown | {error, not_found}
+  when
+    Name :: atom(),
+    Timestamp :: erlang:timestamp(),
+    Result :: any().
+run(Name, Ts, Func) ->
     case ask(Name) of
         blown -> blown;
         ok ->
           case Func() of
               {ok, Result} -> {ok, Result};
               {melt, Result} ->
-                  melt(Name),
+                  melt(Name, Ts),
                   {ok, Result}
           end;
         {error, Reason} ->

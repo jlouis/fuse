@@ -10,6 +10,7 @@
 
 -record(state, {
 	time = undefined,
+	melts = [],
 	installed = []
 }).
 
@@ -111,9 +112,10 @@ g_strategy() ->
 		{frequency([
 			{1, {g_atom(), int(), int()}},
 			{1, {standard, g_neg_int(), int()}},
-			{1, {standard, int(), g_neg_int()}}
+			{1, {standard, int(), g_neg_int()}},
+			{1, {standard, int(), int()}}
 		])},
-		{standard, 60, int()}
+		{standard, nat(), 60}
 	).
 
 g_refresh() ->
@@ -133,7 +135,7 @@ advance_time_args(_S) ->
 	[g_add()].
 	
 advance_time_next(#state { time = T } = S, _V, [Add]) ->
-	S#state { time = time_add(T, Add) }.
+	expire_melts(60, S#state { time = time_add(T, Add) }).
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
@@ -180,8 +182,6 @@ reset_post(S, [Name], Ret) ->
         false -> eq(Ret, {error, not_found})
     end.
 
-is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
-
 %%% ask/1 asks about the state of a fuse that exists
 %%% ---------------------
 ask(Name) ->
@@ -196,37 +196,37 @@ ask_args(_S) ->
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-	        eq(Ret, count_state(count(Name, S)));
+	        eq(Ret, count_state(count(Name, S) - count_melts(Name, S)));
 	    false ->
 	        eq(Ret, {error, not_found})
 	end.
 
 %%% run/1 runs a function (thunk) on the circuit breaker
 %%% ---------------------
-run(Name, _Result, _Return, Fun) ->
-	fuse:run(Name, Fun).
+run(Name, Ts, _Result, _Return, Fun) ->
+	fuse:run(Name, Ts, Fun).
 	
 run_pre(S) ->
 	has_fuses_installed(S).
 
-run_args(S) ->
+run_args(#state { time = Ts} = S) ->
     ?LET({N, Result, Return}, {oneof(installed_names(S)), oneof([ok, melt]), int()},
-      [N, Result, Return, function0({Result, Return})] ).
-      
-run_next(S, _V, [_Name, ok, _, _]) -> S;
-run_next(#state { installed = Is} = S, _V, [Name, melt, _, _]) ->
-	case lists:keyfind(Name, 1, Is) of
-	    {Name, Count} -> S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) };
-	    false -> S
+      [N, Ts, Result, Return, function0({Result, Return})] ).
+
+run_next(S, _V, [_Name, _, ok, _, _]) -> S;
+run_next(S, _V, [Name, Ts, melt, _, _]) ->
+	case is_installed(Name, S) of
+		true -> record_melt(Name, Ts, S);
+		false -> S
 	end.
 
-run_post(S, [Name, _Result, Return, _], Ret) ->
+run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-	        case count_state(count(Name, S)) of
-	            ok -> eq(Ret, {ok, Return});
-	            blown -> eq(Ret, blown)
-	        end;
+		case count_state(count(Name, S) - count_melts(Name, S)) of
+		    ok -> eq(Ret, {ok, Return});
+		    blown -> eq(Ret, blown)
+		end;
 	    false ->
 	        eq(Ret, {error, not_found})
 	end.
@@ -242,10 +242,10 @@ melt_pre(#state { installed = [_|_]}) -> true.
 melt_args(#state { time = T } = S) ->
  	[oneof(installed_names(S)), T].
 
-melt_next(#state { installed = Is } = S, _V, [Name, _]) ->
-	case lists:keyfind(Name, 1, Is) of
-	    {Name, Count} -> S#state { installed = lists:keystore(Name, 1, Is, {Name, case Count of 0 -> 0; N -> N-1 end}) };
-	    false -> S
+melt_next(S, _V, [Name, Ts]) ->
+	case is_installed(Name, S) of
+		true -> record_melt(Name, Ts, S);
+		false -> S
 	end.
 
 melt_post(_S, _, Ret) ->
@@ -302,11 +302,15 @@ cleanup() ->
 %%% INTERNALS
 %%% ---------------------
 
-%% Pick amongst the installed names
+%% installed_names/1 Picks amongst the installed names
 installed_names(#state { installed = Is }) ->
 	[N || {N, _} <- Is].
 
-%% Determine if opts is valid
+%% is_installed/2 determines if a given fuse is installed
+is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
+
+
+%% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
     when K >= 0, R >= 0, T >= 0 ->
 	true;
@@ -317,12 +321,31 @@ count(Name, #state { installed = Inst }) ->
 	{Name, Count} = lists:keyfind(Name, 1, Inst),
 	Count.
 
-count_state(0) -> blown;
+count_state(N) when N =< 0 -> blown;
 count_state(_N) -> ok.
 
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
+record_melt(Name, Ts, #state { melts = Ms } = S) ->
+	S#state { melts = [{Name, Ts} | Ms] }.
+	
+count_melts(Name, #state { melts = Ms }) ->
+	length([N || {N, _} <- Ms, N == Name]).
+
+expire_melts(Period, #state { time = Now, melts = Ms } = S) ->
+	S#state { melts = [{Name, Ts} || {Name, Ts} <- Ms, in_period(Ts, Now, Period)] }.
+
+%% Alternative implementation of being inside the period, based on microsecond conversion.
+in_period(Ts, Now, _) when Now < Ts -> false;
+in_period(Ts, Now, Period) when Now >= Ts ->
+	UsTs = micros(Ts),
+	UsNow = micros(Now),
+	
+	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
+	Secs = (UsNow - UsTs) div (1000 * 1000),
+	
+	Secs =< Period.
 
 %% PULSE instrumentation,
 the_prop() -> x_prop_model_pulse().

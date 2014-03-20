@@ -8,7 +8,7 @@
 -endif.
 
 %% Lifetime API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% Operational API
 -export([install/2, ask/1, reset/1, melt/2]).
@@ -18,7 +18,7 @@
 
 -define(TAB, fuse_state).
 
--record(state, { fuses = [] }).
+-record(state, { fuses = [], timing = automatic }).
 -record(fuse, {
 	name :: atom(),
 	intensity :: integer(),
@@ -30,10 +30,10 @@
 
 %% ------
 %% @doc Start up the manager server for the fuse system
-%% This is assumed to be called by (@see fuse_sup).
+%% This is assumed to be called by (@see fuse_sup). The `Timing' parameter controls how the system manages timing.
 %% @end
-start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Timing) ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [Timing], []).
 
 %% ------
 %% @doc install/2 installs a new fuse into the running system
@@ -74,25 +74,17 @@ melt(Name, Ts) ->
 	gen_server:call(?MODULE, {melt, Name, Ts}).
     
 %% @private
-init([]) ->
+init([Timing]) when Timing == manual; Timing == automatic ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
-	{ok, #state{}}.
+	{ok, #state{ timing = Timing }}.
 
 %% @private
 handle_call({install, #fuse { name = Name, intensity = I} = Fuse}, _From, #state { fuses = Fs } = State) ->
 	ok = mk_fuse_state(Name, case I of 0 -> blown; _K -> ok end),
 	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
 handle_call({reset, Name}, _From, State) ->
-	%% For now, this function does nothing
-	Reset = fun(F) ->
-	    fix(F),
-	    {ok, F#fuse { melt_history = [] }}
-	end,
-	{Res, State2} = with_fuse(Name, State, Reset),
-	case Res of
-	  ok -> {reply, ok, State2};
-	  not_found -> {reply, {error, not_found}, State2}
-	end;
+	{Reply, State2} = handle_reset(Name, State),
+	{reply, Reply, State2};
 handle_call({melt, Name, Now}, _From, State) ->
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
 	case Res of
@@ -107,6 +99,9 @@ handle_cast(_M, State) ->
 	{noreply, State}.
 
 %% @private
+handle_info({reset, Name}, State) ->
+	{_Reply, State2} = handle_reset(Name, State),
+	{noreply, State2};
 handle_info(_M, State) ->
 	{noreply, State}.
 
@@ -120,6 +115,17 @@ code_change(_OldVsn, State, _Extra) ->
 
 %%% Internal functions
 %%% ------
+
+handle_reset(Name, State) ->
+	Reset = fun(F) ->
+	    fix(F),
+	    {ok, F#fuse { melt_history = [] }}
+	end,
+	{Res, State2} = with_fuse(Name, State, Reset),
+	case Res of
+	  ok -> {ok, State2};
+	  not_found -> {{error, not_found}, State2}
+	end.
 
 mk_fuse_state(Name, State) ->
     true = ets:insert(?TAB, {Name, State}),

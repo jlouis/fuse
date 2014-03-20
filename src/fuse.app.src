@@ -8,5 +8,7 @@
 		stdlib
 	]},
 	{mod, {fuse_app, []}},
-	{env, []}
+	{env, [
+	    {timing, manual}
+	]}
 ]}.

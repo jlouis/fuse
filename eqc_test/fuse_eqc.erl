@@ -104,9 +104,10 @@ g_atom() ->
 g_name() ->
 	  oneof(fuses()).
 
+%% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
 	?LET(N, nat(),
-		-(N+1)).
+		-N).
 
 g_strategy() ->
 	fault(
@@ -116,7 +117,7 @@ g_strategy() ->
 			{1, {standard, int(), g_neg_int()}},
 			{1, {standard, int(), int()}}
 		])},
-		{standard, nat(), 60}
+		?LET(N, nat(), {standard, N + 1, 60})
 	).
 
 g_refresh() ->
@@ -322,7 +323,7 @@ is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
 
 %% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
-    when K >= 0, R >= 0, T >= 0 ->
+    when K > 0, R >= 0, T >= 0 ->
 	true;
 valid_opts(_) ->
 	false.

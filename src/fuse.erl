@@ -96,7 +96,7 @@ melt(Name, Ts) ->
 
 options_ok({{standard, MaxR, MaxT}, {reset, Time}})
     when
-      is_integer(MaxR), MaxR >= 0,
+      is_integer(MaxR), MaxR > 0,
       is_integer(MaxT), MaxT >= 0,
       is_integer(Time), Time >= 0 -> ok;
 options_ok(_) ->

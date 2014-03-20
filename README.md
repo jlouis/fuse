@@ -119,7 +119,7 @@ Furthermore:
 
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
 * Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, not_found}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.
-
+* More work on the model made it clear the fuse intensity of '0' requires much special handling in the code base and model to handle correctly. It was decided to reject an intensity of 0 altogether and shave off much complexity in the implementation and in the model.
 
 
 

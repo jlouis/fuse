@@ -45,6 +45,9 @@ g_initial_time() ->
 g_add() ->
     {g_mega(), g_secs(), g_usecs()}.
 
+g_time() ->
+    oneof([g_add(), g_initial_time()]).
+
 %% Add two time points
 time_add({M1, S1, U1}, {M2, S2, U2}) ->
     {UCarry, Us} = divrem(U1 + U2, 1000*1000),
@@ -59,7 +62,7 @@ micros({Megas, Secs, Us}) ->
     
 %% Test the correctness of the time model by running an addition property over it
 prop_add_correct() ->
-	?FORALL({X, Y}, {oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()])},
+	?FORALL({X, Y}, {g_time(), g_time()},
 		begin
 			Way1 = micros(time_add(X, Y)),
 			Way2 = micros(X) + micros(Y),
@@ -69,14 +72,14 @@ prop_add_correct() ->
 
 %% Time forms a group
 prop_add_commut() ->
-	?FORALL({X, Y}, {oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()])},
+	?FORALL({X, Y}, {g_time(), g_time()},
 		begin
 			equals(time_add(X, Y), time_add(Y, X))
 		end
 	).
 
 prop_add_assoc() ->
-	?FORALL({X, Y, Z}, {oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()]), oneof([g_add(), g_initial_time()])},
+	?FORALL({X, Y, Z}, {g_time(), g_time(), g_time()},
 		begin
 			A = time_add(time_add(X, Y), Z),
 			B = time_add(X, time_add(Y, Z)),
@@ -85,7 +88,7 @@ prop_add_assoc() ->
 	).
 
 prop_add_identity() ->
-	?FORALL({X}, {oneof([g_add(), g_initial_time()])},
+	?FORALL({X}, {g_time()},
 		begin
 			conjunction([
 				{right_add, equals(X, time_add(X, {0, 0, 0}))},

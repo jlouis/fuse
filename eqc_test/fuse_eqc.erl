@@ -15,6 +15,8 @@
 	installed = []
 }).
 
+-define(PERIOD, 60).
+
 %% Time handling
 
 %% divrem/2 returns the integer division and remainder
@@ -137,7 +139,7 @@ advance_time_args(_S) ->
 	[g_add()].
 	
 advance_time_next(#state { time = T } = S, _V, [Add]) ->
-	expire_melts(60, S#state { time = time_add(T, Add) }).
+	S#state { time = time_add(T, Add) }.
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
@@ -221,12 +223,13 @@ run_pre(S) ->
 
 run_args(#state { time = Ts} = S) ->
     ?LET({N, Result, Return}, {oneof(installed_names(S)), oneof([ok, melt]), int()},
-      [N, Ts, Result, Return, function0({Result, Return})] ).
+        [N, Ts, Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
 run_next(S, _V, [Name, Ts, melt, _, _]) ->
 	case is_installed(Name, S) of
-		true -> record_melt(Name, Ts, S);
+		true ->
+		    expire_melts(?PERIOD, record_melt(Name, Ts, S#state { time = Ts}));
 		false -> S
 	end.
 
@@ -255,7 +258,8 @@ melt_args(#state { time = T } = S) ->
 
 melt_next(S, _V, [Name, Ts]) ->
 	case is_installed(Name, S) of
-		true -> record_melt(Name, Ts, S);
+		true ->
+		    expire_melts(?PERIOD, record_melt(Name, Ts, S#state { time = Ts }));
 		false -> S
 	end.
 

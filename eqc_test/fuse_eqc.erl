@@ -11,6 +11,7 @@
 -record(state, {
 	time = undefined,
 	melts = [],
+	resets = [],
 	installed = []
 }).
 
@@ -157,7 +158,9 @@ install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
 	    true ->
 	        {{_, Count, _}, _} = Opts,
 	        T = {Name, Count},
-	        S#state { installed = lists:keystore(Name, 1, Is, T) }
+	        clear_melts(Name,
+	          clear_resets(Name,
+	            S#state { installed = lists:keystore(Name, 1, Is, T) }))
 	end.
 
 install_post(_S, [_Name, Opts], R) ->
@@ -169,9 +172,6 @@ install_post(_S, [_Name, Opts], R) ->
 %%% reset/1 resets a fuse back to its policy standard
 reset(Name) ->
 	fuse:reset(Name).
-	
-reset_pre(#state { installed = [] }) -> false;
-reset_pre(#state { installed = [_|_] }) -> true.
 
 reset_args(_S) ->
 	[g_name()].
@@ -180,6 +180,15 @@ reset_post(S, [Name], Ret) ->
     case is_installed(Name, S) of
         true -> eq(Ret, ok);
         false -> eq(Ret, {error, not_found})
+    end.
+
+reset_next(S, _V, [Name]) ->
+    case is_installed(Name, S) of
+        false -> S;
+        true ->
+        		clear_resets(Name,
+        		  clear_melts(Name,
+        		    S))
     end.
 
 %%% ask/1 asks about the state of a fuse that exists
@@ -196,7 +205,7 @@ ask_args(_S) ->
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-	        eq(Ret, count_state(count(Name, S) - count_melts(Name, S)));
+	        eq(Ret, melt_state(Name, S));
 	    false ->
 	        eq(Ret, {error, not_found})
 	end.
@@ -223,13 +232,14 @@ run_next(S, _V, [Name, Ts, melt, _, _]) ->
 run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-		case count_state(count(Name, S) - count_melts(Name, S)) of
+		case melt_state(Name, S) of
 		    ok -> eq(Ret, {ok, Return});
 		    blown -> eq(Ret, blown)
 		end;
 	    false ->
 	        eq(Ret, {error, not_found})
 	end.
+
 
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
@@ -317,21 +327,33 @@ valid_opts({{standard, K, R}, {reset, T}})
 valid_opts(_) ->
 	false.
 	
-count(Name, #state { installed = Inst }) ->
+melt_state(Name, S) ->
+    case fuse_intensity(Name, S) of
+        0 -> blown;
+        K -> count_state(K - count_melts(Name, S))
+    end.
+
+fuse_intensity(Name, #state { installed = Inst }) ->
 	{Name, Count} = lists:keyfind(Name, 1, Inst),
 	Count.
 
-count_state(N) when N =< 0 -> blown;
+count_state(N) when N < 0 -> blown;
 count_state(_N) -> ok.
+
+count_melts(Name, #state { melts = Ms }) ->
+	length([N || {N, _} <- Ms, N == Name]).
 
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} | Ms] }.
+
+clear_resets(Name, #state { resets = Rs } = S) ->
+	S#state { resets = [{T, N} || {T, N} <- Rs, N /= Name] }.
 	
-count_melts(Name, #state { melts = Ms }) ->
-	length([N || {N, _} <- Ms, N == Name]).
+clear_melts(Name, #state { melts = Ms } = S) ->
+	S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
 
 expire_melts(Period, #state { time = Now, melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} || {Name, Ts} <- Ms, in_period(Ts, Now, Period)] }.

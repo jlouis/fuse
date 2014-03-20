@@ -11,7 +11,7 @@
 -record(state, {
 	time = undefined,
 	melts = [],
-	resets = [],
+	reset_points = [],
 	installed = []
 }).
 
@@ -235,7 +235,10 @@ run_next(S, _V, [_Name, _, ok, _, _]) -> S;
 run_next(S, _V, [Name, Ts, melt, _, _]) ->
 	case is_installed(Name, S) of
 		true ->
-		    expire_melts(?PERIOD, record_melt(Name, Ts, S#state { time = Ts}));
+		    record_melt_history(Name,
+		      expire_melts(?PERIOD,
+		        record_melt(Name, Ts,
+		          S#state { time = Ts})));
 		false -> S
 	end.
 
@@ -262,7 +265,10 @@ melt_args(#state { time = T } = S) ->
 melt_next(S, _V, [Name, Ts]) ->
 	case is_installed(Name, S) of
 		true ->
-		    expire_melts(?PERIOD, record_melt(Name, Ts, S#state { time = Ts }));
+		    record_melt_history(Name,
+		      expire_melts(?PERIOD,
+		        record_melt(Name, Ts,
+		          S#state { time = Ts })));
 		false -> S
 	end.
 
@@ -336,10 +342,7 @@ valid_opts(_) ->
 	false.
 	
 melt_state(Name, S) ->
-    case fuse_intensity(Name, S) of
-        0 -> blown;
-        K -> count_state(K - count_melts(Name, S))
-    end.
+	count_state(fuse_intensity(Name, S) - count_melts(Name, S)).
 
 fuse_intensity(Name, #state { installed = Inst }) ->
 	{Name, Count} = lists:keyfind(Name, 1, Inst),
@@ -357,8 +360,16 @@ has_fuses_installed(#state { installed = [_|_]}) -> true.
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} | Ms] }.
 
-clear_resets(Name, #state { resets = Rs } = S) ->
-	S#state { resets = [{T, N} || {T, N} <- Rs, N /= Name] }.
+record_melt_history(Name, #state { time = Ts, reset_points = OldRPs } = S) ->
+	case melt_state(Name, S) of
+	    ok -> S;
+	    blown ->
+	        RP = time_add(Ts, {0, ?PERIOD, 0}),
+	        S#state { reset_points = orddict:store(RP, Name, OldRPs) }
+	end.
+
+clear_resets(Name, #state { reset_points = Rs } = S) ->
+	S#state { reset_points = [{T, N} || {T, N} <- Rs, N /= Name] }.
 	
 clear_melts(Name, #state { melts = Ms } = S) ->
 	S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.

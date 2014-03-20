@@ -24,7 +24,7 @@
 	intensity :: integer(),
 	period :: integer(),
 	heal_time :: integer(),
-	restarts = []
+	melt_history = []
 }).
 
 
@@ -84,7 +84,11 @@ handle_call({install, #fuse { name = Name, intensity = I} = Fuse}, _From, #state
 	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
 handle_call({reset, Name}, _From, State) ->
 	%% For now, this function does nothing
-	{Res, State2} = with_fuse(Name, State, fun(F) -> {ok, F} end),
+	Reset = fun(F) ->
+	    fix(F),
+	    {ok, F#fuse { melt_history = [] }}
+	end,
+	{Res, State2} = with_fuse(Name, State, Reset),
 	case Res of
 	  ok -> {reply, ok, State2};
 	  not_found -> {reply, {error, not_found}, State2}
@@ -132,9 +136,9 @@ with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
             {R, State#state { fuses = [FF | OtherFs] }}
     end.
 
-add_restart(Now, #fuse { intensity = I, period = Period, restarts = R } = Fuse) ->
+add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R } = Fuse) ->
     R1 = add_restart([Now | R], Now, Period),
-    NewF = Fuse#fuse { restarts = R1 },
+    NewF = Fuse#fuse { melt_history = R1 },
     case length(R1) of
         CurI when CurI =< I ->
             {ok, NewF};
@@ -176,4 +180,5 @@ difference({_, TimeS, _}, {_, CurS, _}) ->
 blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}).
 
-              
+fix(#fuse { name = Name }) ->
+    ets:insert(?TAB, {Name, ok}).

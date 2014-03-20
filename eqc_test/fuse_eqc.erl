@@ -109,6 +109,15 @@ g_atom() ->
 g_name() ->
 	  oneof(fuses()).
 
+g_installed(#state { installed = Is }) ->
+	fault(
+		g_name(),
+		case Is of
+		  [] -> g_name();
+		  [_|_] -> oneof(Is)
+		end
+	).
+
 %% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
 	?LET(N, nat(),
@@ -202,9 +211,6 @@ reset_next(S, _V, [Name]) ->
 ask(Name) ->
 	fuse:ask(Name).
 	
-ask_pre(#state { installed = [] }) -> false;
-ask_pre(#state { installed = [_|_]}) -> true.
-
 ask_args(_S) ->
 	[g_name()].
 	
@@ -221,11 +227,8 @@ ask_post(S, [Name], Ret) ->
 run(Name, Ts, _Result, _Return, Fun) ->
 	fuse:run(Name, Ts, Fun).
 	
-run_pre(S) ->
-	has_fuses_installed(S).
-
 run_args(#state { time = Ts} = S) ->
-    ?LET({N, Result, Return}, {oneof(installed_names(S)), oneof([ok, melt]), int()},
+    ?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
         [N, Ts, Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
@@ -252,12 +255,9 @@ run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 %%% ---------------------
 melt(Name, Ts) ->
 	fuse:melt(Name, Ts).
-	
-melt_pre(#state { installed = [] }) -> false;
-melt_pre(#state { installed = [_|_]}) -> true.
 
 melt_args(#state { time = T } = S) ->
- 	[oneof(installed_names(S)), T].
+ 	[g_installed(S), T].
 
 melt_next(S, _V, [Name, Ts]) ->
 	case is_installed(Name, S) of

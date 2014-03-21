@@ -15,7 +15,7 @@
 	installed = []
 }).
 
--define(PERIOD, 60).
+-define(PERIOD, 10).
 
 %% Time handling
 
@@ -24,17 +24,16 @@ divrem(X, Y) ->  {X div Y, X rem Y}.
 
 %% Generators of usecs, seconds, and megaseconds. Defaults to simpler versions.
 g_usecs( ) ->
-	default(0, choose(0, 1000000-1)).
+	frequency([
+		{1, choose(0, 1000000-1)},
+		{5, choose(0, 100)},
+		{15, 0}]).
 	
 g_secs() ->
-	default(0, choose(0, 1000000-1)).
+   default(0, nat()).
 	
 g_mega() ->
-	frequency([
-		{1, return(1)},
-		{1, nat()},
-		{200, return(0)}
-	]).
+    default(0, nat()).
 
 %% Produce an initial time point, based on the above generators
 g_initial_time() ->
@@ -98,7 +97,7 @@ prop_add_identity() ->
 	).
 
 %% API Generators
-fuses() -> [phineas, ferb, candace, perry, heinz].
+fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
 
 valid_fuse(F) ->
 	lists:member(F, fuses()).
@@ -110,13 +109,7 @@ g_name() ->
 	  oneof(fuses()).
 
 g_installed(#state { installed = Is }) ->
-	fault(
-		g_name(),
-		case Is of
-		  [] -> g_name();
-		  [_|_] -> oneof(Is)
-		end
-	).
+	fault(g_name(), oneof(Is)).
 
 %% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
@@ -131,7 +124,7 @@ g_strategy() ->
 			{1, {standard, int(), g_neg_int()}},
 			{1, {standard, int(), int()}}
 		])},
-		?LET(N, nat(), {standard, N + 1, 60})
+		{standard, default(1, choose(1, 3)), ?PERIOD}
 	).
 
 g_refresh() ->
@@ -147,11 +140,43 @@ g_initial_state() ->
 %%% advance_time/1 is model internal and advances the time point in the model
 advance_time(_Add) -> ok.
 
-advance_time_args(_S) ->
-	[g_add()].
+advance_time_pre(#state { time = Now, reset_points = [{Next, _} | _] }) when Now < Next -> true;
+advance_time_pre(#state { time = Now, reset_points = [{Next, _} | _] }) when Now >= Next -> false;
+advance_time_pre(#state { reset_points = [] } ) -> true.
+
+advance_time_args(#state { time = T, reset_points = [] }) ->
+	?LET(Add, g_add(),
+	    [time_add(T, Add)]);
+advance_time_args(#state { time = T, reset_points = [{RP, _} | _] }) ->
+	?LET(Add, g_add(),
+	    begin
+	        Future = time_add(T, Add),
+	        case Future < RP of
+	            true -> [oneof([Future, RP])];
+	            false -> [RP]
+	        end
+	    end).
 	
-advance_time_next(#state { time = T } = S, _V, [Add]) ->
-	S#state { time = time_add(T, Add) }.
+advance_time_next(S, _V, [NewPoint]) ->
+	S#state { time = NewPoint }.
+
+%%% fuse_reset/2 sends timer messages into the SUT
+fuse_reset(Name, _Ts) ->
+    fuse_srv ! {reset, Name},
+    fuse_srv:sync().
+
+fuse_reset_pre(#state { reset_points = [_|_] }) -> true;
+fuse_reset_pre(_S) -> false.
+
+fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
+    [N, T].
+    
+fuse_reset_next(#state { reset_points = [{T, _} |Tail] } = S, _V, [Name, _Ts]) ->
+    clear_melts(Name,
+        S#state { reset_points = Tail, time = T }).
+
+fuse_reset_post(_S, [_Name, _Ts], R) ->
+	eq(R, ok).
 
 %%% install/2 puts a new fuse into the system
 %%% ---------------------
@@ -188,8 +213,11 @@ install_post(_S, [_Name, Opts], R) ->
 reset(Name) ->
 	fuse:reset(Name).
 
-reset_args(_S) ->
-	[g_name()].
+reset_pre(S) ->
+	has_fuses_installed(S).
+
+reset_args(S) ->
+	[g_installed(S)].
 
 reset_post(S, [Name], Ret) ->
     case is_installed(Name, S) of
@@ -211,8 +239,11 @@ reset_next(S, _V, [Name]) ->
 ask(Name) ->
 	fuse:ask(Name).
 	
-ask_args(_S) ->
-	[g_name()].
+ask_pre(S) ->
+	has_fuses_installed(S).
+
+ask_args(S) ->
+	[g_installed(S)].
 	
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
@@ -227,6 +258,9 @@ ask_post(S, [Name], Ret) ->
 run(Name, Ts, _Result, _Return, Fun) ->
 	fuse:run(Name, Ts, Fun).
 	
+run_pre(S) ->
+	has_fuses_installed(S).
+
 run_args(#state { time = Ts} = S) ->
     ?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
         [N, Ts, Result, Return, function0({Result, Return})] ).
@@ -259,6 +293,8 @@ run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 melt(Name, Ts) ->
 	fuse:melt(Name, Ts).
 
+melt_pre(S) -> has_fuses_installed(S).
+
 melt_args(#state { time = T } = S) ->
  	[g_installed(S), T].
 
@@ -275,8 +311,44 @@ melt_next(S, _V, [Name, Ts]) ->
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
-%%% Properties
+%% blow/3 is a nastier version of melt
+%% -------
+blow(Name, Ts, 0) ->
+    fuse:melt(Name, Ts);
+blow(Name, Ts, K) ->
+    fuse:melt(Name, Ts),
+    blow(Name, Ts, K-1).
 
+blow_pre(S) -> has_fuses_installed(S).
+
+blow_args(#state { time = T } = S) ->
+    [g_installed(S), T, nat()].
+
+blow_next(S, _V, [Name, Ts, Count]) ->
+    case is_installed(Name, S) of
+        false -> S;
+        true ->
+            record_melt_history(Name,
+              expire_melts(?PERIOD,
+                lists:foldl(fun(_, St) -> record_melt(Name, Ts, St) end, S, lists:seq(0, Count))))
+    end.
+
+%%% Weight distribution
+weight(#state { installed = [] }, install) -> 20;
+weight(#state { installed = _  }, install) -> 10;
+weight(_S, reset) -> 3;
+weight(_S, fuse_reset) -> 50;
+weight(#state { installed = [] }, melt) -> 5;
+weight(#state { installed = _  }, melt) -> 15;
+weight(_S, run) -> 15;
+weight(_S, ask) -> 10;
+weight(#state { reset_points = [] }, advance_time) -> 5;
+weight(#state { reset_points = _ }, advance_time) -> 50;
+weight(_S, blow) -> 10.
+
+
+%%% PROPERTIES
+%%% ---------------------
 %% Sequential test
 prop_model_seq() ->
     fault_rate(1, 10,

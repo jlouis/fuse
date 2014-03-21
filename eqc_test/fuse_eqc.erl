@@ -163,7 +163,8 @@ advance_time_next(S, _V, [NewPoint]) ->
 %%% fuse_reset/2 sends timer messages into the SUT
 fuse_reset(Name, _Ts) ->
     fuse_srv ! {reset, Name},
-    fuse_srv:sync().
+    ok.
+    %% fuse_srv:sync().
 
 fuse_reset_pre(#state { reset_points = [_|_] }) -> true;
 fuse_reset_pre(_S) -> false.

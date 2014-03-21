@@ -24,4 +24,4 @@ start_link() ->
 %% @private
 init([]) ->
 	{ok, Timing} = application:get_env(fuse, timing),
-	{ok, { {one_for_one, 5, 3600}, [?CHILD(fuse_srv, [Timing])]}}.
+	{ok, { {rest_for_one, 5, 3600}, [?CHILD(fuse_srv, [Timing]), ?CHILD(fuse_mon, [Timing])]}}.

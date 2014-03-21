@@ -110,6 +110,7 @@ I am deliberately keeping them out of the travis build due to the necessity of E
 * Uses sequential testing to make sure command invocation is sane.
 * Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time
 * Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct
+* Models time in EQC and controls time advancement to test for situations where timing is a problem in the system under test.
 
 Furthermore:
 
@@ -120,6 +121,7 @@ Furthermore:
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
 * Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, not_found}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.
 * More work on the model made it clear the fuse intensity of '0' requires much special handling in the code base and model to handle correctly. It was decided to reject an intensity of 0 altogether and shave off much complexity in the implementation and in the model.
+* EQC and careful consideration came up with the idea to separate the alarm handling code from the fuse handling code in the system, to protect a faulty alarm handler from taking down the fuse system.
 
 
 

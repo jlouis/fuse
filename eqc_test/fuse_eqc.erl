@@ -15,7 +15,7 @@
 	installed = []
 }).
 
--define(PERIOD, 5).
+-define(PERIOD, 60).
 
 %% Time handling
 
@@ -124,7 +124,7 @@ g_strategy() ->
 			{1, {standard, int(), g_neg_int()}},
 			{1, {standard, int(), int()}}
 		])},
-		{standard, default(1, choose(1, 3)), ?PERIOD}
+		{standard, default(1, default(1, choose(1, 3))), ?PERIOD}
 	).
 
 g_refresh() ->
@@ -328,8 +328,8 @@ weight(#state { reset_points = _ }, advance_time) -> 50.
 %%% ---------------------
 %% Sequential test
 prop_model_seq() ->
-    more_commands(2,
-    fault_rate(1, 10,
+    more_commands(4,
+    fault_rate(1, 40,
     	?FORALL(St, g_initial_state(),
 	?FORALL(Cmds, commands(?MODULE, St),
 	  begin
@@ -342,7 +342,7 @@ prop_model_seq() ->
 
 prop_model_par() ->
     more_commands(4,
-    fault_rate(1, 10,
+    fault_rate(1, 40,
      ?FORALL(St, g_initial_state(),
      ?FORALL(Repetitions, ?SHRINK(1, [10]),
 	?FORALL(ParCmds, parallel_commands(?MODULE, St),

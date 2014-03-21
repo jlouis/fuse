@@ -2,7 +2,9 @@ PROJECT = fuse
 
 # Options.
 CT_SUITES = fuse
+CT_OPTS = -cover cover.spec
 PLT_APPS = sasl
+
 
 # Dependencies
 DEPS = folsom

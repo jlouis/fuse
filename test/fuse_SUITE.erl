@@ -9,12 +9,16 @@
 -export([end_per_group/2]).
 
 %% Tests.
--export([simple_test/1]).
+-export([
+	simple_test/1,
+	reset_test/1
+]).
 
 %% ct.
 all() ->
 	[
-		simple_test
+		simple_test,
+		reset_test
 	].
 	
 groups() ->
@@ -36,16 +40,30 @@ end_per_group(_Group, _Config) ->
 	
 %% Tests.
 
+-define(FUSE_SIMPLE, simple_fuse).
 simple_test(_Config) ->
 	ct:log("Set up a new fuse, melt it and then verify it resets correctly"),
-	ok = fuse:install(test_fuse, {{standard, 2, 60}, {reset, 500}}),
-	ok = fuse:ask(test_fuse),
-	ok = fuse:melt(test_fuse),
-	ok = fuse:ask(test_fuse),
-	ok = fuse:melt(test_fuse),
-	ok = fuse:ask(test_fuse),
-	ok = fuse:melt(test_fuse),
-	blown = fuse:ask(test_fuse),
+	ok = fuse:install(?FUSE_SIMPLE, {{standard, 2, 60}, {reset, 500}}),
+	ok = fuse:ask(?FUSE_SIMPLE),
+	ok = fuse:melt(?FUSE_SIMPLE),
+	ok = fuse:ask(?FUSE_SIMPLE),
+	ok = fuse:melt(?FUSE_SIMPLE),
+	ok = fuse:ask(?FUSE_SIMPLE),
+	ok = fuse:melt(?FUSE_SIMPLE),
+	blown = fuse:ask(?FUSE_SIMPLE),
 	ct:sleep(600),
-	ok = fuse:ask(test_fuse),
+	ok = fuse:ask(?FUSE_SIMPLE),
+	ok.
+
+-define(FUSE_RESET, reset_fuse).
+reset_test(_Config) ->
+	ct:log("Installing a fuse, then resetting it should clear out timers"),
+	ok = fuse:install(?FUSE_RESET, {{standard, 2, 60}, {reset, 500}}),
+	ok = fuse:ask(?FUSE_RESET),
+	ok = fuse:melt(?FUSE_RESET),
+	ok = fuse:melt(?FUSE_RESET),
+	ok = fuse:melt(?FUSE_RESET),
+	blown = fuse:ask(?FUSE_RESET),
+	ok = fuse:reset(?FUSE_RESET),
+	ok = fuse:ask(?FUSE_RESET),
 	ok.

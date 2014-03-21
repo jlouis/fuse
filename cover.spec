@@ -1,0 +1,2 @@
+{incl_dirs, ["ebin"]}.
+

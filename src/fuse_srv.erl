@@ -93,7 +93,8 @@ handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs 
             false ->
                 fix(Fuse);
             {value, OldFuse, _Otherfuses} ->
-                fix(OldFuse) %% Make sure to reset the timer of the old fuse name if applicable
+                fix(OldFuse),
+                reset_timer(OldFuse)
         end,
         {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
 handle_call({reset, Name}, _From, State) ->
@@ -141,7 +142,7 @@ handle_reset(Name, State, ResetType) ->
                     {ok, NewF#fuse { melt_history = [] }};
                 timeout ->
                     fix(F),
-                    {ok, F#fuse { melt_history = [] }}
+                    {ok, F#fuse { melt_history = [], timer_ref = none }}
             end
 	end,
 	{Res, State2} = with_fuse(Name, State, Reset),
@@ -206,8 +207,7 @@ difference({_, TimeS, _}, {_, CurS, _}) ->
 blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}).
 
-fix(#fuse { name = Name, timer_ref = TRef }) ->
-    cancel_reset_timer(TRef),
+fix(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, ok}).
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
@@ -218,7 +218,3 @@ reset_timer(#fuse { timer_ref = TRef } = F) ->
 add_reset_timer(_Name, #state { timing = manual }, _HealTime) -> none;
 add_reset_timer(Name, #state { timing = automatic}, HealTime) ->
     erlang:send_after(HealTime, self(), {reset, Name}).
-
-cancel_reset_timer(none) -> ok;
-cancel_reset_timer(TRef) -> erlang:cancel_timer(TRef).
-

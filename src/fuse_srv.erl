@@ -27,7 +27,8 @@
 	intensity :: integer(),
 	period :: integer(),
 	heal_time :: integer(),
-	melt_history = []
+	melt_history = [],
+        timer_ref = none
 }).
 
 
@@ -87,14 +88,19 @@ init([Timing]) when Timing == manual; Timing == automatic ->
 	{ok, #state{ timing = Timing }}.
 
 %% @private
-handle_call({install, #fuse { name = Name, intensity = I} = Fuse}, _From, #state { fuses = Fs } = State) ->
-	ok = mk_fuse_state(Name, case I of 0 -> blown; _K -> ok end),
-	{reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse) }};
+handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs } = State) ->
+        case lists:keytake(Name, #fuse.name, Fs) of
+            false ->
+                fix(Fuse);
+            {value, OldFuse, _Otherfuses} ->
+                fix(OldFuse) %% Make sure to reset the timer of the old fuse name if applicable
+        end,
+        {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
 handle_call({reset, Name}, _From, State) ->
-	{Reply, State2} = handle_reset(Name, State),
+	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};
 handle_call({melt, Name, Now}, _From, State) ->
-	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
+	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F, State) end),
 	case Res of
 	  ok -> {reply, ok, State2};
 	  not_found -> {reply, ok, State2}
@@ -110,7 +116,7 @@ handle_cast(_M, State) ->
 
 %% @private
 handle_info({reset, Name}, State) ->
-	{_Reply, State2} = handle_reset(Name, State),
+	{_Reply, State2} = handle_reset(Name, State, timeout),
 	{noreply, State2};
 handle_info(_M, State) ->
 	{noreply, State}.
@@ -126,20 +132,23 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%% ------
 
-handle_reset(Name, State) ->
+handle_reset(Name, State, ResetType) ->
 	Reset = fun(F) ->
-	    fix(F),
-	    {ok, F#fuse { melt_history = [] }}
+            case ResetType of
+                reset ->
+                    fix(F),
+                    NewF = reset_timer(F),
+                    {ok, NewF#fuse { melt_history = [] }};
+                timeout ->
+                    fix(F),
+                    {ok, F#fuse { melt_history = [] }}
+            end
 	end,
 	{Res, State2} = with_fuse(Name, State, Reset),
 	case Res of
 	  ok -> {ok, State2};
 	  not_found -> {{error, not_found}, State2}
 	end.
-
-mk_fuse_state(Name, State) ->
-    true = ets:insert(?TAB, {Name, State}),
-    ok.
 
 init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
     #fuse { name = Name, intensity = MaxR, period = MaxT, heal_time = Reset }.
@@ -152,26 +161,27 @@ with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
             {R, State#state { fuses = [FF | OtherFs] }}
     end.
 
-add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R } = Fuse) ->
-    R1 = add_restart([Now | R], Now, Period),
+add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_time = Heal, name = Name } = Fuse, #state{} = S) ->
+    R1 = add_restart_([Now | R], Now, Period),
     NewF = Fuse#fuse { melt_history = R1 },
     case length(R1) of
         CurI when CurI =< I ->
             {ok, NewF};
             _ ->
               blow(Fuse),
-              {ok, NewF}
+              TRef = add_reset_timer(Name, S, Heal),
+              {ok, NewF#fuse { timer_ref = TRef }}
     end.
- 
 
-add_restart([R|Restarts], Now, Period) ->
+
+add_restart_([R|Restarts], Now, Period) ->
     case in_period(R, Now, Period) of
         true ->
-            [R|add_restart(Restarts, Now, Period)];
+            [R|add_restart_(Restarts, Now, Period)];
         false ->
             []
     end;
-add_restart([], _, _) ->
+add_restart_([], _, _) ->
     [].
     
 in_period(Time, Now, Period) ->
@@ -196,5 +206,19 @@ difference({_, TimeS, _}, {_, CurS, _}) ->
 blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}).
 
-fix(#fuse { name = Name }) ->
+fix(#fuse { name = Name, timer_ref = TRef }) ->
+    cancel_reset_timer(TRef),
     ets:insert(?TAB, {Name, ok}).
+
+reset_timer(#fuse { timer_ref = none } = F) -> F;
+reset_timer(#fuse { timer_ref = TRef } = F) ->
+    erlang:cancel_timer(TRef),
+    F#fuse { timer_ref = none }.
+
+add_reset_timer(_Name, #state { timing = manual }, _HealTime) -> none;
+add_reset_timer(Name, #state { timing = automatic}, HealTime) ->
+    erlang:send_after(HealTime, self(), {reset, Name}).
+
+cancel_reset_timer(none) -> ok;
+cancel_reset_timer(TRef) -> erlang:cancel_timer(TRef).
+

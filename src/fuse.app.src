@@ -9,6 +9,6 @@
 	]},
 	{mod, {fuse_app, []}},
 	{env, [
-	    {timing, manual}
+	    {timing, automatic}
 	]}
 ]}.

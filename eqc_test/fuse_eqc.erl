@@ -15,7 +15,7 @@
 	installed = []
 }).
 
--define(PERIOD, 60).
+-define(PERIOD, 10).
 
 %% Time handling
 
@@ -108,8 +108,8 @@ g_atom() ->
 g_name() ->
 	  oneof(fuses()).
 
-g_installed(#state { installed = Is }) ->
-	fault(g_name(), oneof(Is)).
+g_installed(S) ->
+	fault(g_name(), oneof(installed_names(S))).
 
 %% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
@@ -165,13 +165,13 @@ fuse_reset(Name, _Ts) ->
     fuse_srv ! {reset, Name},
     ok.
 
-fuse_reset_pre(#state { reset_points = [_|_] }) -> true;
+fuse_reset_pre(#state { time = T, reset_points = [{T, _}|_]} = S) -> resets_ok(S);
 fuse_reset_pre(_S) -> false.
 
 fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
     [N, T].
     
-fuse_reset_next(#state { reset_points = [{T, _} |Tail] } = S, _V, [Name, _Ts]) ->
+fuse_reset_next(#state { reset_points = [{T, Name} |Tail] } = S, _V, [Name, _Ts]) ->
     clear_melts(Name,
         S#state { reset_points = Tail, time = T }).
 
@@ -240,7 +240,7 @@ ask(Name) ->
 	fuse:ask(Name).
 	
 ask_pre(S) ->
-	has_fuses_installed(S).
+	resets_ok(S) andalso has_fuses_installed(S).
 
 ask_args(S) ->
 	[g_installed(S)].
@@ -248,7 +248,7 @@ ask_args(S) ->
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-	        eq(Ret, melt_state(Name, S));
+	    	eq(Ret, melt_state(Name, S));
 	    false ->
 	        eq(Ret, {error, not_found})
 	end.
@@ -259,7 +259,7 @@ run(Name, Ts, _Result, _Return, Fun) ->
 	fuse:run(Name, Ts, Fun).
 	
 run_pre(S) ->
-	has_fuses_installed(S).
+	resets_ok(S) andalso has_fuses_installed(S).
 
 run_args(#state { time = Ts} = S) ->
     ?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
@@ -293,7 +293,8 @@ run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 melt(Name, Ts) ->
 	fuse:melt(Name, Ts).
 
-melt_pre(S) -> has_fuses_installed(S).
+melt_pre(S) ->
+    resets_ok(S) andalso has_fuses_installed(S).
 
 melt_args(#state { time = T } = S) ->
  	[g_installed(S), T].
@@ -312,23 +313,22 @@ melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
 %%% Weight distribution
-weight(#state { installed = [] }, install) -> 20;
-weight(#state { installed = _  }, install) -> 10;
-weight(_S, reset) -> 3;
-weight(_S, fuse_reset) -> 50;
-weight(#state { installed = [] }, melt) -> 5;
-weight(#state { installed = _  }, melt) -> 15;
-weight(_S, run) -> 15;
-weight(_S, ask) -> 10;
-weight(#state { reset_points = [] }, advance_time) -> 5;
-weight(#state { reset_points = _ }, advance_time) -> 50.
+weight(#state { installed = [] }, install) -> 10;
+weight(_S, install) -> 2;
+weight(_, reset) -> 1;
+weight(_, fuse_reset) -> 10;
+weight(_, melt) -> 10;
+weight(_, run) -> 10;
+weight(_, ask) -> 10;
+weight(#state { reset_points = [] }, advance_time) -> 1;
+weight(_S, advance_time) -> 10.
+
 
 
 %%% PROPERTIES
 %%% ---------------------
 %% Sequential test
 prop_model_seq() ->
-    more_commands(4,
     fault_rate(1, 40,
     	?FORALL(St, g_initial_state(),
 	?FORALL(Cmds, commands(?MODULE, St),
@@ -338,10 +338,9 @@ prop_model_seq() ->
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(Cmds), R == ok))
-	  end)))).
+	  end))).
 
 prop_model_par() ->
-    more_commands(4,
     fault_rate(1, 40,
      ?FORALL(St, g_initial_state(),
      ?FORALL(Repetitions, ?SHRINK(1, [10]),
@@ -353,7 +352,7 @@ prop_model_par() ->
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(ParCmds), R == ok))
-	  end)))))).
+	  end))))).
 
 x_prop_model_pulse() ->
   ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),
@@ -409,6 +408,10 @@ count_melts(Name, #state { melts = Ms }) ->
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
+resets_ok(#state { reset_points = [] }) -> true;
+resets_ok(#state {reset_points = [{Ts, _}|_], time = T }) ->
+	T =< Ts.
+
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} | Ms] }.
 
@@ -439,6 +442,9 @@ in_period(Ts, Now, Period) when Now >= Ts ->
 	Secs = (UsNow - UsTs) div (1000 * 1000),
 	
 	Secs =< Period.
+
+is_reset_point(Name, #state { reset_points = RPs }) ->
+	lists:keymember(Name, 2, RPs).
 
 %% PULSE instrumentation,
 the_prop() -> x_prop_model_pulse().

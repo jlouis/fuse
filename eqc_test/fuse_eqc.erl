@@ -164,7 +164,6 @@ advance_time_next(S, _V, [NewPoint]) ->
 fuse_reset(Name, _Ts) ->
     fuse_srv ! {reset, Name},
     ok.
-    %% fuse_srv:sync().
 
 fuse_reset_pre(#state { reset_points = [_|_] }) -> true;
 fuse_reset_pre(_S) -> false.
@@ -393,6 +392,7 @@ x_prop_model_pulse() ->
 
 cleanup() ->
   error_logger:tty(false),
+  application:set_env(fuse, timing, manual),
   (catch application:stop(fuse)),
   ok = application:start(fuse).
 

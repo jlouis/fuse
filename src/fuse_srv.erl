@@ -16,6 +16,9 @@
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
+%% Private
+-export([sync/0]).
+
 -define(TAB, fuse_state).
 
 -record(state, { fuses = [], timing = automatic }).
@@ -73,6 +76,11 @@ reset(Name) ->
 melt(Name, Ts) ->
 	gen_server:call(?MODULE, {melt, Name, Ts}).
     
+%% sync/0 syncs the fuse_srv. For internal use only in tests
+%% @private
+sync() ->
+    gen_server:call(?MODULE, sync).
+
 %% @private
 init([Timing]) when Timing == manual; Timing == automatic ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
@@ -91,6 +99,8 @@ handle_call({melt, Name, Now}, _From, State) ->
 	  ok -> {reply, ok, State2};
 	  not_found -> {reply, ok, State2}
 	end;
+handle_call(sync, _F, State) ->
+	{reply, ok, State};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
 	

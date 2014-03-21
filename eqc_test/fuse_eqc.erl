@@ -15,7 +15,7 @@
 	installed = []
 }).
 
--define(PERIOD, 10).
+-define(PERIOD, 5).
 
 %% Time handling
 
@@ -311,28 +311,6 @@ melt_next(S, _V, [Name, Ts]) ->
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
-%% blow/3 is a nastier version of melt
-%% -------
-blow(Name, Ts, 0) ->
-    fuse:melt(Name, Ts);
-blow(Name, Ts, K) ->
-    fuse:melt(Name, Ts),
-    blow(Name, Ts, K-1).
-
-blow_pre(S) -> has_fuses_installed(S).
-
-blow_args(#state { time = T } = S) ->
-    [g_installed(S), T, nat()].
-
-blow_next(S, _V, [Name, Ts, Count]) ->
-    case is_installed(Name, S) of
-        false -> S;
-        true ->
-            record_melt_history(Name,
-              expire_melts(?PERIOD,
-                lists:foldl(fun(_, St) -> record_melt(Name, Ts, St) end, S, lists:seq(0, Count))))
-    end.
-
 %%% Weight distribution
 weight(#state { installed = [] }, install) -> 20;
 weight(#state { installed = _  }, install) -> 10;
@@ -343,14 +321,14 @@ weight(#state { installed = _  }, melt) -> 15;
 weight(_S, run) -> 15;
 weight(_S, ask) -> 10;
 weight(#state { reset_points = [] }, advance_time) -> 5;
-weight(#state { reset_points = _ }, advance_time) -> 50;
-weight(_S, blow) -> 10.
+weight(#state { reset_points = _ }, advance_time) -> 50.
 
 
 %%% PROPERTIES
 %%% ---------------------
 %% Sequential test
 prop_model_seq() ->
+    more_commands(2,
     fault_rate(1, 10,
     	?FORALL(St, g_initial_state(),
 	?FORALL(Cmds, commands(?MODULE, St),
@@ -360,9 +338,10 @@ prop_model_seq() ->
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(Cmds), R == ok))
-	  end))).
+	  end)))).
 
 prop_model_par() ->
+    more_commands(4,
     fault_rate(1, 10,
      ?FORALL(St, g_initial_state(),
      ?FORALL(Repetitions, ?SHRINK(1, [10]),
@@ -374,7 +353,7 @@ prop_model_par() ->
 	  	?WHENFAIL(
 	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
 	  		aggregate(command_names(ParCmds), R == ok))
-	  end))))).
+	  end)))))).
 
 x_prop_model_pulse() ->
   ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),

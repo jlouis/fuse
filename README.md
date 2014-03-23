@@ -22,7 +22,7 @@ To use fuse, you must first start the fuse application:
 	
 but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must install a fuse into the system by *installing* a fuse descriptions:
 
-	Name = database_timeout,
+	Name = database_fuse
 	Strategy = {standard, MaxR, MaxT},
 	Refresh = {reset, 60000},
 	Opts = {Strategy, Refresh},
@@ -42,16 +42,23 @@ So re-creation of a fuse overwrites the existing fuse.
 
 Once you have installed a fuse, you can use it in one of two ways:
 
-	case fuse:ask(database_timeout) of
+        case fuse:ask(database_fuse, [sync]) of
 		ok -> …;
 		blown -> …
 	end,
-	
-This queries the fuse for its state and lets you handle the case where it is currently blown. Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
+        
+	case fuse:ask(database_fuse) of
+		ok -> …;
+		blown -> …
+	end,
+
+This queries the fuse for its state and lets you handle the case where it is currently blown. The second variant does the same call, but does so in a *dirty* way. This means while being faster, you may see an an `ok` answer from a fuse that is in the process of being blown. In most cases this race condition is benign to real software.
+
+Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
 
 	case emysql:execute(Stmt) of
 	    {error, connection_lock_timeout} ->
-	    	fuse:melt(database_timeout),
+	    	fuse:melt(database_fuse),
 	    	…
 	    …
 	end,
@@ -67,14 +74,19 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 	  when Result :: term().
 
 	%% To use this function:
+	case fuse:run(Name, fun exec/0, [sync]) of
+		{ok, Result} -> …;
+		blown -> …
+	end,
+
 	case fuse:run(Name, fun exec/0) of
 		{ok, Result} -> …;
 		blown -> …
 	end,
-	
-this function will do the asking and melting itself based on the output of the underlying function. This is highly recommended since it is often easier to handle.
-	
-## Options to give to the fuse
+
+this function will do the asking and melting itself based on the output of the underlying function. The `sync` variant does so synchronously, while the simpler variant is subject to (benign) races like in the above example. The `run/2,3` invocation is often easier to handle in programs.
+
+## Options to give to the fuse (TODO)
 
 The fuses support several options which you can give them in order to configure them appropriately:
 
@@ -118,10 +130,20 @@ Furthermore:
 
 # Subtle Errors found by EQC
 
+General:
+
+* Numerous small mistakes have been weeded out while developing the code.
+* EQC has guided the design in a positive way. This has lead to simpler code with fewer errors.
+* EQC has suggested improvements to the API. Specifically in the area of synchronous calls and race condition avoidance.
+
+Subtleties:
+
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
 * Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, not_found}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.
 * More work on the model made it clear the fuse intensity of '0' requires much special handling in the code base and model to handle correctly. It was decided to reject an intensity of 0 altogether and shave off much complexity in the implementation and in the model.
 * EQC and careful consideration came up with the idea to separate the alarm handling code from the fuse handling code in the system, to protect a faulty alarm handler from taking down the fuse system.
+* EQC, using PULSE to test, figured out we need a way to synchronize `ask/1`. The problem is that this runs outside the `fuse_srv` which leads the parallel race conditions. This was mitigated by adding a variant, `ask/2` which is sync-safe and poses no race conditions.
+* EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
 
 
 

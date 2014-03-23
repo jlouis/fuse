@@ -31,7 +31,7 @@
 install(Name, Options) ->
     options_ok(Options),
     fuse_srv:install(Name, Options).
-    
+
 %% @doc run/2 runs a thunk under a given fuse
 %% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'
 %% @end

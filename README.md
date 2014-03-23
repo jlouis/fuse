@@ -42,7 +42,7 @@ So re-creation of a fuse overwrites the existing fuse.
 
 Once you have installed a fuse, you can use it in one of two ways:
 
-        case fuse:ask(database_fuse, [sync]) of
+	case fuse:ask(database_fuse, [sync]) of
 		ok -> …;
 		blown -> …
 	end,

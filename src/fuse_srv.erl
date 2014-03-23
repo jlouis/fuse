@@ -11,7 +11,11 @@
 -export([start_link/1]).
 
 %% Operational API
--export([install/2, ask/1, reset/1, melt/2]).
+-export([
+    ask/1, ask/2,
+    install/2,
+    melt/2,
+    reset/1]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
@@ -53,7 +57,14 @@ install(Name, Opts) ->
 %% The documentation is (@see fuse:ask/2)
 %% @end
 -spec ask(atom()) -> ok | blown | {error, not_found}.
-ask(Name) ->
+ask(Name) -> ask(Name, []).
+
+%% @doc ask/1 asks about the current given fuse state
+%% The documentation is (@see fuse:ask/2)
+%% @end
+ask(Name, [sync]) ->
+    gen_server:call(?MODULE, {ask, Name}, 5000);
+ask(Name, []) ->
     try ets:lookup_element(?TAB, Name, 2) of
         ok -> ok;
         blown -> blown
@@ -97,6 +108,8 @@ handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs 
                 reset_timer(OldFuse)
         end,
         {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
+handle_call({ask, Name}, _From, State) ->
+        {reply, ask(Name, []), State};
 handle_call({reset, Name}, _From, State) ->
 	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};

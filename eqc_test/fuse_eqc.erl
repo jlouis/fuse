@@ -267,9 +267,9 @@ run(Name, Ts, _Result, _Return, Fun) ->
 run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
-%run_args(#state { time = Ts} = S) ->
-    %?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
-        %[N, Ts, Result, Return, function0({Result, Return})] ).
+run_args(#state { time = Ts} = S) ->
+    ?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
+        [N, Ts, Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
 run_next(S, _V, [Name, Ts, melt, _, _]) ->
@@ -278,7 +278,7 @@ run_next(S, _V, [Name, Ts, melt, _, _]) ->
 		    record_melt_history(Name,
 		      expire_melts(?PERIOD,
 		        record_melt(Name, Ts,
-		          S#state { time = Ts})));
+		          S#state { time = Ts })));
 		false -> S
 	end.
 
@@ -287,7 +287,7 @@ run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 	    true ->
 		case is_blown(Name, S) of
 		    false -> eq(Ret, {ok, Return});
-		    true -> eq(Ret, blown)
+		    true -> true
 		end;
 	    false ->
 	        eq(Ret, {error, not_found})

@@ -428,9 +428,19 @@ record_melt_history(Name, #state { time = Ts, reset_points = OldRPs } = S) ->
 	case melt_state(Name, S) of
 	    ok -> S;
 	    blown ->
-	        RP = time_add(Ts, {0, ?PERIOD, 0}),
-	        S#state { reset_points = orddict:store(RP, Name, OldRPs) }
+	        case is_reset_point(Name, S) of
+	            true -> S; %% Can have at most 1 RP for a name
+	            false ->
+	            	RP = time_add(Ts, {0, ?PERIOD, 0}),
+	        		S#state { reset_points =reset_store(RP, Name, OldRPs) }
+	        	end
 	end.
+
+reset_store(RP, Name, []) -> [{RP, Name}];
+reset_store(RP, Name, [{P, N} | Ps]) when RP =< P ->
+	[{P, N} | reset_store(RP, Name, Ps)];
+reset_store(RP, Name, [{P, N} | Ps]) when RP > P ->
+	[{RP, Name}, {P, N} | Ps].
 
 clear_resets(Name, #state { reset_points = Rs } = S) ->
 	S#state { reset_points = [{T, N} || {T, N} <- Rs, N /= Name] }.
@@ -444,12 +454,11 @@ expire_melts(Period, #state { time = Now, melts = Ms } = S) ->
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;
 in_period(Ts, Now, Period) when Now >= Ts ->
-	UsTs = micros(Ts),
-	UsNow = micros(Now),
+	STs = micros(Ts) div (1000 * 1000),
+	SNow = micros(Now) div (1000 * 1000),
 	
 	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
-	Secs = (UsNow - UsTs) div (1000 * 1000),
-	
+	Secs = SNow - STs,
 	Secs =< Period.
 
 is_reset_point(Name, #state { reset_points = RPs }) ->

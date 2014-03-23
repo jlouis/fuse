@@ -6,3 +6,4 @@ current_counterexample.eqc
 doc
 deps
 logs
+*.swp

@@ -163,6 +163,7 @@ advance_time_next(S, _V, [NewPoint]) ->
 %%% fuse_reset/2 sends timer messages into the SUT
 fuse_reset(Name, _Ts) ->
     fuse_srv ! {reset, Name},
+    fuse_srv:sync(),
     ok.
 
 fuse_reset_pre(#state { time = T, reset_points = [{T, _}|_]} = S) -> resets_ok(S);
@@ -170,10 +171,15 @@ fuse_reset_pre(_S) -> false.
 
 fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
     [N, T].
-    
-fuse_reset_next(#state { reset_points = [{T, Name} |Tail] } = S, _V, [Name, _Ts]) ->
-    clear_melts(Name,
-        S#state { reset_points = Tail, time = T }).
+
+fuse_reset_next(#state { reset_points = [{T, _} | _] = RPs } = S, _V, [Name, _Ts]) ->
+    case lists:keytake(Name, 2, RPs) of
+    	{value, _, NewRPs} ->
+    		clear_melts(Name,
+        		  S#state { reset_points = NewRPs, time = T });
+        	false ->
+        		S
+    end.
 
 fuse_reset_post(_S, [_Name, _Ts], R) ->
 	eq(R, ok).
@@ -214,7 +220,7 @@ reset(Name) ->
 	fuse:reset(Name).
 
 reset_pre(S) ->
-	has_fuses_installed(S).
+	resets_ok(S) andalso has_fuses_installed(S).
 
 reset_args(S) ->
 	[g_installed(S)].
@@ -248,7 +254,7 @@ ask_args(S) ->
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-	    	eq(Ret, melt_state(Name, S));
+	    	eq(Ret, case is_blown(Name, S) of true -> blown; false -> ok end);
 	    false ->
 	        eq(Ret, {error, not_found})
 	end.
@@ -279,9 +285,9 @@ run_next(S, _V, [Name, Ts, melt, _, _]) ->
 run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
-		case melt_state(Name, S) of
-		    ok -> eq(Ret, {ok, Return});
-		    blown -> eq(Ret, blown)
+		case is_blown(Name, S) of
+		    false -> eq(Ret, {ok, Return});
+		    true -> eq(Ret, blown)
 		end;
 	    false ->
 	        eq(Ret, {error, not_found})
@@ -370,7 +376,7 @@ x_prop_model_pulse() ->
 
 cleanup() ->
   error_logger:tty(false),
-  application:set_env(fuse, timing, manual),
+  (catch application:set_env(fuse, timing, manual)),
   (catch application:stop(fuse)),
   ok = application:start(fuse).
 
@@ -395,6 +401,9 @@ valid_opts(_) ->
 melt_state(Name, S) ->
 	count_state(fuse_intensity(Name, S) - count_melts(Name, S)).
 
+is_blown(Name, #state { reset_points = RPs }) ->
+	lists:keymember(Name, 2, RPs).
+	
 fuse_intensity(Name, #state { installed = Inst }) ->
 	{Name, Count} = lists:keyfind(Name, 1, Inst),
 	Count.
@@ -409,7 +418,7 @@ has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
 resets_ok(#state { reset_points = [] }) -> true;
-resets_ok(#state {reset_points = [{Ts, _}|_], time = T }) ->
+resets_ok(#state { reset_points = [{Ts, _}|_], time = T }) ->
 	T =< Ts.
 
 record_melt(Name, Ts, #state { melts = Ms } = S) ->

@@ -3,6 +3,10 @@
 -module(fuse_mon).
 -behaviour(gen_server).
 
+-ifdef(PULSE).
+-include_lib("pulse_otp/include/pulse_otp.hrl").
+-endif.
+
 %% Lifetime
 -export([start_link/1]).
 
@@ -10,9 +14,12 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
 -record(state, {
-	timing = automatic
+	timing = automatic,
+	history = []
 }).
+
 -define(PERIOD, 60*1000).
+
 %% Lifetime
 start_link(Timing) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Timing], []).
@@ -48,9 +55,15 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 	
 %%% Internal API
-
 handle_fuses(State) ->
-	State.
+	Fuses = ets:match_object(fuse_srv, '_'),
+	State2 = track_histories(Fuses, State),
+	report(State2),
+	State2.
+	
+track_histories(_Fuses, State) -> State.
+
+report(_State) -> ok.
 
 set_timer(#state { timing = manual } = S) -> S;
 set_timer(#state { timing = automatic } = S) ->

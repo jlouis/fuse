@@ -7,11 +7,11 @@
 -endif.
 
 -export([
-	ask/1,
+	ask/1, ask/2,
 	install/2,
 	melt/1, melt/2,
 	reset/1,
-	run/2, run/3
+	run/2, run/3, run/4
 ]).
 
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
@@ -39,17 +39,28 @@ install(Name, Options) ->
     when
       Name :: atom(),
       Result :: any().
-run(Name, Func) -> run(Name, os:timestamp(), Func).
+run(Name, Func) -> run(Name, os:timestamp(), Func, []).
 
-%% run/3 runs a thunk at a given time stamp
+%% @doc run/3 runs a thunk under a given fuse
+%% The difference from `run/2' is that this variant allows you to specify the options
+%% to `ask/2' which gives the ability to ask synchronously.
+%% @end
+-spec run(Name, fun (() -> {ok, Result} | {melt, Result}), [] | [sync] ) -> {ok, Result} | blown | {error, not_found}
+  when
+    Name :: atom(),
+    Result :: any().
+run(Name, Func, Opts) ->
+    run(Name, os:timestamp(), Func, Opts).
+
+%% run/4 runs a thunk at a given time stamp with options
 %% @private
--spec run(Name, Timestamp, fun(() -> {ok, Result} | {melt, Result}) ) -> {ok, Result} | blown | {error, not_found}
+-spec run(Name, Timestamp, fun(() -> {ok, Result} | {melt, Result}), [] | [sync] ) -> {ok, Result} | blown | {error, not_found}
   when
     Name :: atom(),
     Timestamp :: erlang:timestamp(),
     Result :: any().
-run(Name, Ts, Func) ->
-    case ask(Name) of
+run(Name, Ts, Func, Opts) ->
+    case ask(Name, Opts) of
         blown -> blown;
         ok ->
           case Func() of
@@ -62,17 +73,24 @@ run(Name, Ts, Func) ->
           {error, Reason}
     end.
 
-%% @doc ask/1 queries the state of a fuse
-%% Given `ask(N)' we ask the fuse state of the name `N'
-%% @end
+%% @equiv ask(N, [])
 -spec ask(Name) -> ok | blown | {error, not_found}
   when Name :: atom().
 ask(Name) ->
-    fuse_srv:ask(Name).
+    ask(Name, []).
 
-%% @doc reset/1 resets the internal counter of a given fuse
-%% Given `reset(N)' we ask the system to reset the fuse `N'
+%% @doc ask/2 queries the state of a fuse
+%% Given `ask(N, [])' we ask the fuse state for the name `N'. The invocation `ask(N, [sync])'
+%% does the same but uses synchronized calling and factors through a fuse server to get a definite answer.
+%% This is useful if one MUST know the current state of the fuse for good. Returns the fuse state, either `ok' or `blown'.
+%% If there is no such fuse, returns `{error, not_found}'
 %% @end
+-spec ask(Name, [] | [sync]) -> ok | blown | {error, not_found}
+  when Name :: atom().
+ask(N, []) -> fuse_srv:ask(N, []);
+ask(N, [sync]) -> fuse_srv:ask(N, [sync]);
+ask(_N, _Otherwise) -> error(badarg).
+
 -spec reset(Name) -> ok | {error, not_found}
   when Name :: atom().
 reset(Name) ->

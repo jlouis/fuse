@@ -243,7 +243,7 @@ reset_next(S, _V, [Name]) ->
 %%% ask/1 asks about the state of a fuse that exists
 %%% ---------------------
 ask(Name) ->
-	fuse:ask(Name).
+	fuse:ask(Name, [sync]).
 	
 ask_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
@@ -262,14 +262,14 @@ ask_post(S, [Name], Ret) ->
 %%% run/1 runs a function (thunk) on the circuit breaker
 %%% ---------------------
 run(Name, Ts, _Result, _Return, Fun) ->
-	fuse:run(Name, Ts, Fun).
+	fuse:run(Name, Ts, Fun, [sync]).
 	
 run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
-run_args(#state { time = Ts} = S) ->
-    ?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
-        [N, Ts, Result, Return, function0({Result, Return})] ).
+%run_args(#state { time = Ts} = S) ->
+    %?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
+        %[N, Ts, Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
 run_next(S, _V, [Name, Ts, melt, _, _]) ->

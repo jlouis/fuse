@@ -10,6 +10,9 @@
 %% Lifetime
 -export([start_link/1]).
 
+%% API
+-export([sync/0]).
+
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
@@ -24,6 +27,11 @@
 start_link(Timing) ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [Timing], []).
 
+%% API
+%% @private
+sync() ->
+	gen_server:call(?MODULE, sync).
+
 %% Callbacks
 
 %% @private
@@ -32,6 +40,8 @@ init([Timing]) when Timing == manual; Timing == automatic ->
 	{ok, set_timer(S)}.
 	
 %% @private
+handle_call(sync, _F, State) ->
+	{reply, ok, State};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
 

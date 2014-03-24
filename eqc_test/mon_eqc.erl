@@ -76,7 +76,6 @@ process(Entries) ->
 	fuse_mon:sync(). 
 	
 process_args(#state { history = Hs }) ->
-	ets:i(),
 	Entries = mk_entries(Hs),
 	[Entries].
 
@@ -130,6 +129,19 @@ track_state_history_next(#state { history = Installed } = S, _V, [Name, FuseSt])
 	    Installed),
 	S#state { history = Update }.
 
+startup() ->
+	{ok, _Pid} = fuse_mon:start_link(manual),
+	ok.
+	
+cleanup() ->
+	process_flag(trap_exit, true),
+	exit(whereis(fuse_mon), stoppitystop),
+	receive
+		{'EXIT', _Pid, stoppitystop} -> ok
+	end,
+	process_flag(trap_exit, false),
+	ok.
+	
 %%% The property of the model
 prop_component_correct() ->
 	?SETUP(fun() ->
@@ -139,7 +151,9 @@ prop_component_correct() ->
 	end,
 	?FORALL(Cmds, commands(?MODULE),
 	  begin
+	  	ok = startup(),
 	  	{H, S, Result} = run_commands(?MODULE, Cmds),
+	  	ok = cleanup(),
 	  	pretty_commands(?MODULE, Cmds, {H, S, Result},
 	  		Result == ok)
 	  end)).

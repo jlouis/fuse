@@ -6,7 +6,8 @@
 -compile(export_all).
 
 -record(state, {
-	installed = orddict:new()
+	history = orddict:new(),
+	alarms = []
 }).
 
 %% API specification
@@ -23,7 +24,7 @@ fuses() ->
 g_fuse() ->
 	oneof(fuses()).
 
-g_installed(#state { installed = Is }) ->
+g_installed(#state { history = Is }) ->
 	oneof([N || {N, _} <- Is]).
 
 g_state() ->
@@ -42,32 +43,25 @@ install_args(_S) ->
 install_callouts(_S, [Name, FuseSt]) ->
 	?SELFCALL(track_state_history, [Name, FuseSt]).
 	
-install_next(#state { installed = Installed } = S, _V, [Name, FuseSt]) ->
-	Update = orddict:update(Name,
-	    fun(History) -> [FuseSt | History] end,
-	    [FuseSt],
-	    Installed),
-	S#state { installed = Update }.
-	
 %% Remove a fuse
 remove(_Name) ->
 	ok.
 	
-remove_pre(#state { installed = [] }) -> false;
+remove_pre(#state { history = [] }) -> false;
 remove_pre(#state{}) -> true.
 
 remove_args(S) ->
 	[g_installed(S)].
 
-remove_next(#state { installed = Is} = S, _V, [Name]) ->
+remove_next(#state { history = Is} = S, _V, [Name]) ->
 	Update = orddict:erase(Name, Is),
-	S#state { installed = Update }.
+	S#state { history = Update }.
 
 %% Update the fuse state
 update(_Name, _FuseSt) ->
 	ok.
 	
-update_pre(#state { installed = [] }) -> false;
+update_pre(#state { history = [] }) -> false;
 update_pre(#state{}) -> true.
 
 update_args(S) ->
@@ -76,17 +70,66 @@ update_args(S) ->
 update_callouts(_S, [Name, FuseSt]) ->
 	?SELFCALL(track_state_history, [Name, FuseSt]).
 
+process([Hs]) ->
+	make_table(Hs),
+	fuse_mon ! timeout,
+	fuse_mon:sync().
+	
+process_args(#state { history = Hs }) -> [Hs].
+
+process_callouts(#state { alarms = Alarms, history = History}, [_Hs]) ->
+	callouts_from_history(Alarms, History).
+
+callouts_from_history(_Alarms, []) -> ?EMPTY;
+callouts_from_history(Alarms, [{Name, Hist} | Rest]) ->
+	case transition_alarms(lists:member(Name, Alarms), Hist) of
+	    set ->
+	    	?PAR(
+	    		?SEQ(
+	    		  ?CALLOUT(alarm_handler, set_alarm, [{Name, fuse_blown}], ok),
+	    		  ?SELFCALL(set, [Name])),
+	    		callouts_from_history(Alarms, Rest));
+	    clear ->
+	    	?PAR(
+	    		?SEQ(
+	    		  ?CALLOUT(alarm_handler, clear_alarm, [Name], ok),
+	    		  ?SELFCALL(clear, [Name])),
+	    		callouts_from_history(Alarms, Rest));
+	    noop ->
+	    	callouts_from_history(Alarms, Rest)
+	end.
+	
+transition_alarms(Triggered, History) ->
+	Blowns = length([H || H <- History, H == blown]),
+	case Triggered of
+	    false when Blowns > 0 -> set;
+	    false -> noop;
+	    true when Blowns > 0 -> noop;
+	    true when Blowns == 0 -> clear
+	end.
+	    
 %%% Internals SELFCALLS
-track_state_history_next(#state { installed = Installed } = S, _V, [Name, FuseSt]) ->
+set_next(#state { alarms = As } = S, _V, [Name]) ->
+	S#state { alarms = [Name | As] }.
+	
+clear_next(#state { alarms = As } = S, _V, [Name]) ->	
+	S#state { alarms = [A || A <- As, A /= Name]}.
+
+track_state_history_next(#state { history = Installed } = S, _V, [Name, FuseSt]) ->
 	Update = orddict:update(Name,
-	    fun(History) -> [FuseSt | History] end,
+	    fun(History) ->
+	        case [FuseSt | History] of
+	          Hist when length(Hist) > 3 -> take(3, Hist);
+	          Hist -> Hist
+	        end
+	    end,
 	    [FuseSt],
 	    Installed),
-	S#state { installed = Update }.
+	S#state { history = Update }.
 
 %%% The property of the model
 prop_component_correct() ->
-	?SETUP(fun() -> eqc_mocking:start_mocking(api_spec()), fun() -> ok end end,
+	?SETUP(fun() -> ets:new(fuse_srv, [named_table, public]), eqc_mocking:start_mocking(api_spec()), fun() -> ets:delete(fuse_srv), ok end end,
 	?FORALL(Cmds, commands(?MODULE),
 	  begin
 	  	{H, S, Result} = run_commands(?MODULE, Cmds),
@@ -95,3 +138,18 @@ prop_component_correct() ->
 	  end)).
 	  
 %%% Internals
+make_table(History) ->
+	ets:delete_all_objects(fuse_srv),
+	Entries = mk_entries(History),
+	true = ets:insert_new(fuse_srv, Entries),
+	ok.
+	
+mk_entries([{Name, [St | _]} | Rest]) ->
+	[{Name, St} | mk_entries(Rest)];
+mk_entries([{_Name, []} | Rest]) ->
+	mk_entries(Rest);
+mk_entries([]) -> [].
+
+take(N, L) ->
+	{T, _} = lists:split(N, L),
+	T.

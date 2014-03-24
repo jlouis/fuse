@@ -70,12 +70,15 @@ update_args(S) ->
 update_callouts(_S, [Name, FuseSt]) ->
 	?SELFCALL(track_state_history, [Name, FuseSt]).
 
-process([Hs]) ->
-	make_table(Hs),
+process(Entries) ->
+	make_table(Entries),
 	fuse_mon ! timeout,
-	fuse_mon:sync().
+	fuse_mon:sync(). 
 	
-process_args(#state { history = Hs }) -> [Hs].
+process_args(#state { history = Hs }) ->
+	ets:i(),
+	Entries = mk_entries(Hs),
+	[Entries].
 
 process_callouts(#state { alarms = Alarms, history = History}, [_Hs]) ->
 	callouts_from_history(Alarms, History).
@@ -98,7 +101,7 @@ callouts_from_history(Alarms, [{Name, Hist} | Rest]) ->
 	    noop ->
 	    	callouts_from_history(Alarms, Rest)
 	end.
-	
+
 transition_alarms(Triggered, History) ->
 	Blowns = length([H || H <- History, H == blown]),
 	case Triggered of
@@ -129,7 +132,11 @@ track_state_history_next(#state { history = Installed } = S, _V, [Name, FuseSt])
 
 %%% The property of the model
 prop_component_correct() ->
-	?SETUP(fun() -> ets:new(fuse_srv, [named_table, public]), eqc_mocking:start_mocking(api_spec()), fun() -> ets:delete(fuse_srv), ok end end,
+	?SETUP(fun() ->
+		ets:new(fuse_srv, [named_table, public]),
+		eqc_mocking:start_mocking(api_spec()),
+		fun() -> ets:delete(fuse_srv), ok end
+	end,
 	?FORALL(Cmds, commands(?MODULE),
 	  begin
 	  	{H, S, Result} = run_commands(?MODULE, Cmds),
@@ -138,9 +145,8 @@ prop_component_correct() ->
 	  end)).
 	  
 %%% Internals
-make_table(History) ->
-	ets:delete_all_objects(fuse_srv),
-	Entries = mk_entries(History),
+make_table(Entries) ->
+	true = ets:delete_all_objects(fuse_srv),
 	true = ets:insert_new(fuse_srv, Entries),
 	ok.
 	

@@ -21,7 +21,7 @@ fuses() ->
 	[heinz, phineas, perry].
 
 g_fuse() ->
-	oneof([fuses()]).
+	oneof(fuses()).
 
 g_installed(#state { installed = Is }) ->
 	oneof([N || {N, _} <- Is]).

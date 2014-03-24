@@ -30,7 +30,7 @@ g_usecs( ) ->
 		{15, 0}]).
 	
 g_secs() ->
-   default(0, nat()).
+   default(0, choose(0,999)).
 	
 g_mega() ->
     default(0, nat()).
@@ -268,7 +268,7 @@ run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
 run_args(#state { time = Ts} = S) ->
-    ?LET({N, Result, Return}, {g_installed(S), oneof([ok, melt]), int()},
+    ?LET({N, Result, Return}, {g_installed(S), elements([ok, melt]), int()},
         [N, Ts, Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
@@ -341,22 +341,22 @@ prop_model_seq() ->
 	  begin
 	  	cleanup(),
 	  	{H, S, R} = run_commands(?MODULE, Cmds),
-	  	?WHENFAIL(
-	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
+	        pretty_commands(?MODULE, Cmds, {H, S, R},
 	  		aggregate(command_names(Cmds), R == ok))
 	  end))).
 
 prop_model_par() ->
     fault_rate(1, 40,
+     ?LET(Shrinking, parameter(shrinking, false), 
      ?FORALL(St, g_initial_state(),
-     ?FORALL(Repetitions, ?SHRINK(1, [10]),
 	?FORALL(ParCmds, parallel_commands(?MODULE, St),
-	  ?ALWAYS(Repetitions,
+	  ?ALWAYS(if not Shrinking -> 1;
+                     Shrinking -> 20
+		  end,
 	  begin
 	  	cleanup(),
 	  	{H, S, R} = run_parallel_commands(?MODULE, ParCmds),
-	  	?WHENFAIL(
-	  		io:format("History: ~p\nState: ~p\nResult: ~p\n", [H, S, R]),
+	        pretty_commands(?MODULE, ParCmds, {H, S, R},
 	  		aggregate(command_names(ParCmds), R == ok))
 	  end))))).
 

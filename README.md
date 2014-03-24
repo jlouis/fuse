@@ -145,5 +145,7 @@ Subtleties:
 * EQC, using PULSE to test, figured out we need a way to synchronize `ask/1`. The problem is that this runs outside the `fuse_srv` which leads the parallel race conditions. This was mitigated by adding a variant, `ask/2` which is sync-safe and poses no race conditions.
 * EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
 
+# Contributors:
 
-
+* Jesper Louis Andersen
+* Thomas Arts

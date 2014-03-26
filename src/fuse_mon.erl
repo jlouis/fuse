@@ -18,6 +18,7 @@
 
 -record(state, {
 	timing = automatic,
+        alarms = [],
 	history = []
 }).
 
@@ -65,17 +66,55 @@ code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
 	
 %%% Internal API
-handle_fuses(State) ->
+handle_fuses(#state { history = Hist } = State) ->
 	Fuses = ets:match_object(fuse_srv, '_'),
-	State2 = track_histories(Fuses, State),
-	report(State2),
-	State2.
+	TrackedHistory = track_histories(Fuses, Hist),
+	{AlarmsToChange, UpdatedState} = analyze(State#state { history = TrackedHistory }),
+	process_alarms(AlarmsToChange),
+	UpdatedState.
 	
-track_histories(_Fuses, State) -> State.
+%% process_alarms/2 raises and clears appropriate alarms
+process_alarms([{A, set} | As]) -> alarm_handler:set_alarm({A, fuse_blown}), process_alarms(As);
+process_alarms([{A, clear} | As]) -> alarm_handler:clear_alarm(A), process_alarms(As);
+process_alarms([]) -> ok.
 
-report(_State) -> ok.
+track_histories(Fuses, Hist) ->
+	lists:foldl(fun update/2, Hist, Fuses).
+	
+update({Name, blown}, Hist) ->
+    E = {Name, 3},
+    [ E | lists:keydelete(Name, 1, Hist) ];
+update({Name, ok}, Hist) ->
+    case lists:keytake(Name, 1, Hist) of
+        false -> Hist;
+        {value, {Name, V}, Remain} -> [{Name, clamp(0, V-1, 3)} | Remain]
+    end.
+
+clamp(Lo, V, _Hi) when V < Lo -> Lo;
+clamp(_Lo, V, Hi) when V > Hi -> Hi;
+clamp(_Lo, V, _Hi) -> V.
+
+analyze(#state { history = Hs, alarms = CurAlarms } = S) ->
+    {ToClear, ToKeep} = lists:partition(fun({_, V}) -> V == 0 end, Hs),
+    {Clear, Set} = {names(ToClear), names(ToKeep)},
+    NewAlarms = Set -- CurAlarms,
+    PruneAlarms = intersect(CurAlarms, Clear),
+    ChangeList = [{A, set} || A <- NewAlarms] ++ [{A, clear} || A <- PruneAlarms],
+    %% Note we sort the alarm change list here. This forces alarm changes in a certain order
+    %% which makes it easier to reason about the alarm changes in an EQC model
+    { lists:sort(ChangeList),
+      S#state { history = ToKeep, alarms = (CurAlarms ++ NewAlarms) -- PruneAlarms }}.
+
+names(Xs) -> [element(1, X) || X <- Xs].
 
 set_timer(#state { timing = manual } = S) -> S;
 set_timer(#state { timing = automatic } = S) ->
 	erlang:send_after(?PERIOD, self(), timeout),
 	S.
+
+intersect([A | As], Others) ->
+    case lists:member(A, Others) of
+        true -> [A | intersect(As, Others)];
+        false -> intersect(As, Others)
+    end;
+intersect([], _) -> [].

@@ -1,6 +1,6 @@
 %%% @author Thomas Arts 
 %%% @copyright (C) 2014, Quviq AB
-%%% @doc Checking that the os:timestamp behaves as expected
+%%% @doc Showing that os:timestamp does not behave as expected
 %%%
 %%% @end
 %%% Created : 26 Mar 2014 by Thomas Arts <thomas.arts@quviq.com>

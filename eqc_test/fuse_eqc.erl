@@ -137,28 +137,20 @@ g_initial_state() ->
     ?LET(T, g_initial_time(),
     	#state { time = T }).
 
-%%% advance_time/1 is model internal and advances the time point in the model
-advance_time(_Add) -> ok.
-
-advance_time_pre(#state { time = Now, reset_points = [{Next, _} | _] }) when Now < Next -> true;
-advance_time_pre(#state { time = Now, reset_points = [{Next, _} | _] }) when Now >= Next -> false;
-advance_time_pre(#state { reset_points = [] } ) -> true.
-
-advance_time_args(#state { time = T, reset_points = [] }) ->
+g_time_add(#state { time = T, reset_points = [] }) ->
 	?LET(Add, g_add(),
-	    [time_add(T, Add)]);
-advance_time_args(#state { time = T, reset_points = [{RP, _} | _] }) ->
+		time_add(T, Add));
+g_time_add(#state { time = T, reset_points = [{T, _} | _]}) ->
+	T;
+g_time_add(#state { time = T, reset_points = [{RP, _} | _] }) ->
 	?LET(Add, g_add(),
 	    begin
 	        Future = time_add(T, Add),
 	        case Future < RP of
-	            true -> [oneof([Future, RP])];
-	            false -> [RP]
+	            true -> elements([RP, Future]);
+	            false -> RP
 	        end
 	    end).
-	
-advance_time_next(S, _V, [NewPoint]) ->
-	S#state { time = NewPoint }.
 
 %%% fuse_reset/2 sends timer messages into the SUT
 fuse_reset(Name, _Ts) ->
@@ -166,19 +158,22 @@ fuse_reset(Name, _Ts) ->
     fuse_srv:sync(),
     ok.
 
-fuse_reset_pre(#state { time = T, reset_points = [{T, _}|_]} = S) -> resets_ok(S);
-fuse_reset_pre(_S) -> false.
+has_reset_points(#state { reset_points = [] }) -> false;
+has_reset_points(_S) -> true.
+
+fuse_reset_pre(S) ->
+	has_reset_points(S).
 
 fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
     [N, T].
 
-fuse_reset_next(#state { reset_points = [{T, _} | _] = RPs } = S, _V, [Name, _Ts]) ->
+fuse_reset_next(#state { reset_points = [{_, _} | _] = RPs } = S, _V, [Name, Ts]) ->
     case lists:keytake(Name, 2, RPs) of
     	{value, _, NewRPs} ->
     		clear_melts(Name,
-        		  S#state { reset_points = NewRPs, time = T });
-        	false ->
-        		S
+        		  S#state { reset_points = NewRPs, time = Ts });
+         false ->
+         	S#state { time = Ts }
     end.
 
 fuse_reset_post(_S, [_Name, _Ts], R) ->
@@ -267,9 +262,9 @@ run(Name, Ts, _Result, _Return, Fun) ->
 run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
-run_args(#state { time = Ts} = S) ->
+run_args(S) ->
     ?LET({N, Result, Return}, {g_installed(S), elements([ok, melt]), int()},
-        [N, Ts, Result, Return, function0({Result, Return})] ).
+        [N, g_time_add(S), Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
 run_next(S, _V, [Name, Ts, melt, _, _]) ->
@@ -279,7 +274,7 @@ run_next(S, _V, [Name, Ts, melt, _, _]) ->
 		      expire_melts(?PERIOD,
 		        record_melt(Name, Ts,
 		          S#state { time = Ts })));
-		false -> S
+		false -> S#state { time = Ts }
 	end.
 
 run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
@@ -302,8 +297,8 @@ melt(Name, Ts) ->
 melt_pre(S) ->
     resets_ok(S) andalso has_fuses_installed(S).
 
-melt_args(#state { time = T } = S) ->
- 	[g_installed(S), T].
+melt_args(S) ->
+ 	[g_installed(S), g_time_add(S)].
 
 melt_next(S, _V, [Name, Ts]) ->
 	case is_installed(Name, S) of
@@ -312,7 +307,7 @@ melt_next(S, _V, [Name, Ts]) ->
 		      expire_melts(?PERIOD,
 		        record_melt(Name, Ts,
 		          S#state { time = Ts })));
-		false -> S
+		false -> S#state { time = Ts }
 	end.
 
 melt_post(_S, _, Ret) ->

@@ -6,6 +6,7 @@
 -compile(export_all).
 
 -record(state, {
+	installed = [],
 	history = orddict:new(),
 	alarms = []
 }).
@@ -14,96 +15,92 @@
 api_spec() -> 
 	#api_spec {
 		language = erlang,
-		modules = []
+		modules = [
+                    #api_module {
+                       name = alarm_handler,
+                       functions = [ #api_fun { name = set_alarm, arity = 1},
+                                     #api_fun { name = clear_alarm, arity = 1}
+                                   ]
+                    }
+                ]
 	}.
 
 %% Generators
 fuses() ->
-	[heinz, phineas, perry].
+	[heinz, phineas, ferb, isabella, candace, vanessa, major_monogram, perry].
 
 g_fuse() ->
-	oneof(fuses()).
+	elements(fuses()).
 
-g_installed(#state { history = Is }) ->
-	oneof([N || {N, _} <- Is]).
+g_installed(#state { installed = Is }) ->
+	oneof(Is).
 
 g_state() ->
 	oneof([ok, blown]).
 
 %% Initial state
-initial_state() -> #state{}.
+initial_state() -> #state{ }.
 
 %% Install a new fuse
-install(_Name, _FuseSt) ->
+install(_Name) ->
 	ok.
-	
+
+install_pre(#state { installed = Is }) ->
+	length(Is) < length(fuses()).
+
 install_args(_S) ->
-	[g_fuse(), g_state()].
+	[g_fuse()].
 
-install_callouts(_S, [Name, FuseSt]) ->
-	?SELFCALL(track_state_history, [Name, FuseSt]).
-	
-%% Remove a fuse
-remove(_Name) ->
-	ok.
-	
-remove_pre(#state { history = [] }) -> false;
-remove_pre(#state{}) -> true.
-
-remove_args(S) ->
-	[g_installed(S)].
-
-remove_next(#state { history = Is} = S, _V, [Name]) ->
-	Update = orddict:erase(Name, Is),
-	S#state { history = Update }.
-
-%% Update the fuse state
-update(_Name, _FuseSt) ->
-	ok.
-	
-update_pre(#state { history = [] }) -> false;
-update_pre(#state{}) -> true.
-
-update_args(S) ->
-	[g_installed(S), g_state()].
-	
-update_callouts(_S, [Name, FuseSt]) ->
-	?SELFCALL(track_state_history, [Name, FuseSt]).
+install_next(#state { installed = Is } = S, _V, [Name]) ->
+	case lists:member(Name, Is) of
+	  false -> S#state { installed = [Name | Is] };
+	  true -> S
+	end.
 
 process(Entries) ->
 	make_table(Entries),
 	fuse_mon ! timeout,
 	fuse_mon:sync(). 
 	
-process_args(#state { history = Hs }) ->
-	ets:i(),
-	Entries = mk_entries(Hs),
-	[Entries].
+process_args(#state { installed = Is }) ->
+	K = length(Is),
+	?LET(Vs, vector(K, g_state()),
+	    [lists:zip(Is, Vs)]).
 
-process_callouts(#state { alarms = Alarms, history = History}, [_Hs]) ->
-	callouts_from_history(Alarms, History).
+process_callouts(#state { alarms = Alarms, history = History }, [Entries]) ->
+	?SEQ(?SEQ(track_entries(Entries)),
+	         ?SEQ(callouts_from_history(Alarms, History, lists:sort(Entries)))).
+	         
+track_entries(Entries) ->
+    [?SELFCALL(track_history, [N, St]) || {N, St} <- Entries].
 
-callouts_from_history(_Alarms, []) -> ?EMPTY;
-callouts_from_history(Alarms, [{Name, Hist} | Rest]) ->
-	case transition_alarms(lists:member(Name, Alarms), Hist) of
+callouts_from_history(_Alarms, _History, []) -> [];
+callouts_from_history(Alarms, History, [{N, gone} | Rest]) ->
+	[?SEQ(
+	    ?CALLOUT(alarm_handler, clear_alarm, [N], ok),
+	    ?SELFCALL(clear, [N])) |
+	callouts_from_history(Alarms, History, Rest)];
+callouts_from_history(Alarms, History, [{N, V} | Rest]) ->
+	case transition_alarms(lists:member(N, Alarms), V, lists:keyfind(N, 1, History)) of
 	    set ->
-	    	?PAR(
-	    		?SEQ(
-	    		  ?CALLOUT(alarm_handler, set_alarm, [{Name, fuse_blown}], ok),
-	    		  ?SELFCALL(set, [Name])),
-	    		callouts_from_history(Alarms, Rest));
+	    		[?SEQ(
+	    		  ?CALLOUT(alarm_handler, set_alarm, [{N, fuse_blown}], ok),
+	    		  ?SELFCALL(set, [N])) |
+	    		callouts_from_history(Alarms, History, Rest)];
 	    clear ->
-	    	?PAR(
-	    		?SEQ(
-	    		  ?CALLOUT(alarm_handler, clear_alarm, [Name], ok),
-	    		  ?SELFCALL(clear, [Name])),
-	    		callouts_from_history(Alarms, Rest));
+	    		[?SEQ(
+	    		  ?CALLOUT(alarm_handler, clear_alarm, [N], ok),
+	    		  ?SELFCALL(clear, [N])) |
+	    		callouts_from_history(Alarms, History, Rest)];
 	    noop ->
-	    	callouts_from_history(Alarms, Rest)
+	    	callouts_from_history(Alarms, History, Rest)
 	end.
 
-transition_alarms(Triggered, History) ->
-	Blowns = length([H || H <- History, H == blown]),
+transition_alarms(Triggered, V, false) -> transition_alarms(Triggered, V, []);
+transition_alarms(Triggered, V, {_, Hs}) -> transition_alarms(Triggered, V, Hs);
+transition_alarms(Triggered, V, HEs) ->
+	RecordedHistory = take(3, [V|HEs]),
+	Blowns = length([H || H <- RecordedHistory, H == blown]),
 	case Triggered of
 	    false when Blowns > 0 -> set;
 	    false -> noop;
@@ -118,18 +115,31 @@ set_next(#state { alarms = As } = S, _V, [Name]) ->
 clear_next(#state { alarms = As } = S, _V, [Name]) ->	
 	S#state { alarms = [A || A <- As, A /= Name]}.
 
-track_state_history_next(#state { history = Installed } = S, _V, [Name, FuseSt]) ->
-	Update = orddict:update(Name,
-	    fun(History) ->
-	        case [FuseSt | History] of
-	          Hist when length(Hist) > 3 -> take(3, Hist);
-	          Hist -> Hist
-	        end
-	    end,
-	    [FuseSt],
-	    Installed),
-	S#state { history = Update }.
-
+track_history_next(#state { history = Installed } = S, _V, [N, V]) ->
+	Update = orddict:update(N,
+     	  fun(Hist) ->
+     	      case [V | Hist] of
+     	        H when length(H) > 3 -> take(3, H);
+     	        H -> H
+     	      end
+     	  end,
+     	  [V],
+     	  Installed),
+ 	S#state { history = Update }.
+ 
+startup() ->
+	{ok, _Pid} = fuse_mon:start_link(manual),
+	ok.
+	
+cleanup() ->
+	process_flag(trap_exit, true),
+	exit(whereis(fuse_mon), stoppitystop),
+	receive
+		{'EXIT', _Pid, stoppitystop} -> ok
+	end,
+	process_flag(trap_exit, false),
+	ok.
+	
 %%% The property of the model
 prop_component_correct() ->
 	?SETUP(fun() ->
@@ -138,11 +148,14 @@ prop_component_correct() ->
 		fun() -> ets:delete(fuse_srv), ok end
 	end,
 	?FORALL(Cmds, commands(?MODULE),
+        ?TRAPEXIT(
 	  begin
-	  	{H, S, Result} = run_commands(?MODULE, Cmds),
-	  	pretty_commands(?MODULE, Cmds, {H, S, Result},
-	  		Result == ok)
-	  end)).
+	  	ok = startup(),
+	  	{H, S, R} = run_commands(?MODULE, Cmds),
+	  	ok = cleanup(),
+	  	pretty_commands(?MODULE, Cmds, {H, S, R},
+	  		aggregate(command_names(Cmds), R == ok))
+	  end))).
 	  
 %%% Internals
 make_table(Entries) ->
@@ -156,6 +169,7 @@ mk_entries([{_Name, []} | Rest]) ->
 	mk_entries(Rest);
 mk_entries([]) -> [].
 
+take(N, L) when length(L) < N -> L;
 take(N, L) ->
 	{T, _} = lists:split(N, L),
 	T.

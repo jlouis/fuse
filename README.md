@@ -123,6 +123,7 @@ I am deliberately keeping them out of the travis build due to the necessity of E
 * Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time
 * Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct
 * Models time in EQC and controls time advancement to test for situations where timing is a problem in the system under test.
+* Uses EQC Component to monitor correct handling of alarms triggering and clearing in the Erlang system.
 
 Furthermore:
 
@@ -130,13 +131,13 @@ Furthermore:
 
 # Subtle Errors found by EQC
 
-General:
+## General:
 
 * Numerous small mistakes have been weeded out while developing the code.
 * EQC has guided the design in a positive way. This has lead to simpler code with fewer errors.
 * EQC has suggested improvements to the API. Specifically in the area of synchronous calls and race condition avoidance.
 
-Subtleties:
+## Subtleties:
 
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
 * Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, not_found}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.
@@ -145,5 +146,11 @@ Subtleties:
 * EQC, using PULSE to test, figured out we need a way to synchronize `ask/1`. The problem is that this runs outside the `fuse_srv` which leads the parallel race conditions. This was mitigated by adding a variant, `ask/2` which is sync-safe and poses no race conditions.
 * EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
 
+The monitor model found the following:
 
+* Monitor handling was incorrect and the hysteresis was not implemented correctly, leading to numerous flaps on the alarms.
 
+# Contributors:
+
+* Jesper Louis Andersen
+* Thomas Arts

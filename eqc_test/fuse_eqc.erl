@@ -108,8 +108,9 @@ g_atom() ->
 g_name() ->
 	  oneof(fuses()).
 
-g_installed(S) ->
-	fault(g_name(), oneof(installed_names(S))).
+%% Thomas says this is a bad idea, since we can rule out the name by a precondition
+%% g_installed(S) ->
+%%	fault(g_name(), oneof(installed_names(S))).
 
 %% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
@@ -218,7 +219,7 @@ reset_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
 reset_args(S) ->
-	[g_installed(S)].
+	[g_name()].
 
 reset_post(S, [Name], Ret) ->
     case is_installed(Name, S) of
@@ -244,7 +245,7 @@ ask_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
 ask_args(S) ->
-	[g_installed(S)].
+	[g_name()].
 	
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
@@ -263,7 +264,7 @@ run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
 run_args(S) ->
-    ?LET({N, Result, Return}, {g_installed(S), elements([ok, melt]), int()},
+    ?LET({N, Result, Return}, {g_name(), elements([ok, melt]), int()},
         [N, g_time_add(S), Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, _, ok, _, _]) -> S;
@@ -298,7 +299,7 @@ melt_pre(S) ->
     resets_ok(S) andalso has_fuses_installed(S).
 
 melt_args(S) ->
- 	[g_installed(S), g_time_add(S)].
+ 	[g_name(), g_time_add(S)].
 
 melt_next(S, _V, [Name, Ts]) ->
 	case is_installed(Name, S) of

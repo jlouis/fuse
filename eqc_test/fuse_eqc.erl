@@ -9,92 +9,13 @@
 -compile(export_all).
 
 -record(state, {
-	time = undefined,
+	time = {0, 0, 0},
 	melts = [],
 	reset_points = [],
 	installed = []
 }).
 
 -define(PERIOD, 10).
-
-%% Time handling
-
-%% divrem/2 returns the integer division and remainder
-divrem(X, Y) ->  {X div Y, X rem Y}.
-
-%% Generators of usecs, seconds, and megaseconds. Defaults to simpler versions.
-g_usecs( ) ->
-	frequency([
-		{1, choose(0, 1000000-1)},
-		{5, choose(0, 100)},
-		{15, 0}]).
-	
-g_secs() ->
-   default(0, choose(0,999)).
-	
-g_mega() ->
-    default(0, nat()).
-
-%% Produce an initial time point, based on the above generators
-g_initial_time() ->
-    ?LET({Mega, Secs, Micros}, {nat(), g_secs(), g_usecs()},
-        {1300 + Mega, Secs, Micros}).
-
-%% Produce a time interval suitable for addition
-g_add() ->
-    {g_mega(), g_secs(), g_usecs()}.
-
-g_time() ->
-    oneof([g_add(), g_initial_time()]).
-
-%% Add two time points
-time_add({M1, S1, U1}, {M2, S2, U2}) ->
-    {UCarry, Us} = divrem(U1 + U2, 1000*1000),
-    {MCarry, S} = divrem(S1 + S2 + UCarry, 1000*1000),
-    M = M1 + M2 + MCarry,
-    {M, S, Us}.
-    
-%% Obtain the microsecond count of two time points
-micros({Megas, Secs, Us}) ->
-    S = Megas * 1000 * 1000 + Secs,
-    Us + S * 1000 * 1000.
-    
-%% Test the correctness of the time model by running an addition property over it
-prop_add_correct() ->
-	?FORALL({X, Y}, {g_time(), g_time()},
-		begin
-			Way1 = micros(time_add(X, Y)),
-			Way2 = micros(X) + micros(Y),
-			equals(Way1, Way2)
-		end
-	).
-
-%% Time forms a group
-prop_add_commut() ->
-	?FORALL({X, Y}, {g_time(), g_time()},
-		begin
-			equals(time_add(X, Y), time_add(Y, X))
-		end
-	).
-
-prop_add_assoc() ->
-	?FORALL({X, Y, Z}, {g_time(), g_time(), g_time()},
-		begin
-			A = time_add(time_add(X, Y), Z),
-			B = time_add(X, time_add(Y, Z)),
-			equals(A, B)
-		end
-	).
-
-prop_add_identity() ->
-	?FORALL({X}, {g_time()},
-		begin
-			conjunction([
-				{right_add, equals(X, time_add(X, {0, 0, 0}))},
-				{left_add, equals(X, time_add({0, 0, 0}, X))}
-			])
-		end
-	).
 
 %% API Generators
 fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
@@ -134,24 +55,7 @@ g_refresh() ->
 g_options() ->
 	{g_strategy(), g_refresh()}.
 
-g_initial_state() ->
-    ?LET(T, g_initial_time(),
-    	#state { time = T }).
-
-g_time_add(#state { time = T, reset_points = [] }) ->
-	?LET(Add, g_add(),
-		time_add(T, Add));
-g_time_add(#state { time = T, reset_points = [{T, _} | _]}) ->
-	T;
-g_time_add(#state { time = T, reset_points = [{RP, _} | _] }) ->
-	?LET(Add, g_add(),
-	    begin
-	        Future = time_add(T, Add),
-	        case Future < RP of
-	            true -> elements([RP, Future]);
-	            false -> RP
-	        end
-	    end).
+g_initial_state() -> #state {}.
 
 %%% fuse_reset/2 sends timer messages into the SUT
 fuse_reset(Name, _Ts) ->
@@ -165,8 +69,9 @@ has_reset_points(_S) -> true.
 fuse_reset_pre(S) ->
 	has_reset_points(S).
 
-fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
-    [N, T].
+%% fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
+%%     [N, T].
+
 
 fuse_reset_next(#state { reset_points = [{_, _} | _] = RPs } = S, _V, [Name, Ts]) ->
     case lists:keytake(Name, 2, RPs) of
@@ -218,7 +123,7 @@ reset(Name) ->
 reset_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
-reset_args(S) ->
+reset_args(_S) ->
 	[g_name()].
 
 reset_post(S, [Name], Ret) ->
@@ -244,7 +149,7 @@ ask(Name) ->
 ask_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
-ask_args(S) ->
+ask_args(_S) ->
 	[g_name()].
 	
 ask_post(S, [Name], Ret) ->
@@ -257,28 +162,28 @@ ask_post(S, [Name], Ret) ->
 
 %%% run/1 runs a function (thunk) on the circuit breaker
 %%% ---------------------
-run(Name, Ts, _Result, _Return, Fun) ->
-	fuse:run(Name, Ts, Fun, [sync]).
+run(Name, _Result, _Return, Fun) ->
+	fuse:run(Name, Fun, [sync]).
 	
 run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
-run_args(S) ->
+run_args(_S) ->
     ?LET({N, Result, Return}, {g_name(), elements([ok, melt]), int()},
-        [N, g_time_add(S), Result, Return, function0({Result, Return})] ).
+        [N, Result, Return, function0({Result, Return})] ).
 
-run_next(S, _V, [_Name, _, ok, _, _]) -> S;
-run_next(S, _V, [Name, Ts, melt, _, _]) ->
+run_next(S, _V, [_Name, ok, _, _]) -> S;
+run_next(S, _V, [Name, melt, _, _]) ->
 	case is_installed(Name, S) of
 		true ->
 		    record_melt_history(Name,
 		      expire_melts(?PERIOD,
-		        record_melt(Name, Ts,
-		          S#state { time = Ts })));
-		false -> S#state { time = Ts }
+		        record_melt(Name, todo,
+		          S#state {  })));
+		false -> S#state {  }
 	end.
 
-run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
+run_post(S, [Name, _Result, Return, _], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
 		case is_blown(Name, S) of
@@ -292,23 +197,23 @@ run_post(S, [Name, _Ts, _Result, Return, _], Ret) ->
 
 %%% melt/1 melts the fuse a little bit
 %%% ---------------------
-melt(Name, Ts) ->
-	fuse:melt(Name, Ts).
+melt(Name) ->
+	fuse:melt(Name).
 
 melt_pre(S) ->
     resets_ok(S) andalso has_fuses_installed(S).
 
-melt_args(S) ->
- 	[g_name(), g_time_add(S)].
+melt_args(_S) ->
+ 	[g_name()].
 
-melt_next(S, _V, [Name, Ts]) ->
+melt_next(S, _V, [Name]) ->
 	case is_installed(Name, S) of
 		true ->
 		    record_melt_history(Name,
 		      expire_melts(?PERIOD,
-		        record_melt(Name, Ts,
-		          S#state { time = Ts })));
-		false -> S#state { time = Ts }
+		        record_melt(Name, todo,
+		          S)));
+		false -> S
 	end.
 
 melt_post(_S, _, Ret) ->
@@ -379,13 +284,8 @@ cleanup() ->
 %%% INTERNALS
 %%% ---------------------
 
-%% installed_names/1 Picks amongst the installed names
-installed_names(#state { installed = Is }) ->
-	[N || {N, _} <- Is].
-
 %% is_installed/2 determines if a given fuse is installed
 is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
-
 
 %% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
@@ -420,15 +320,15 @@ resets_ok(#state { reset_points = [{Ts, _}|_], time = T }) ->
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} | Ms] }.
 
-record_melt_history(Name, #state { time = Ts, reset_points = OldRPs } = S) ->
+record_melt_history(Name, #state {reset_points = OldRPs } = S) ->
 	case melt_state(Name, S) of
 	    ok -> S;
 	    blown ->
 	        case is_reset_point(Name, S) of
 	            true -> S; %% Can have at most 1 RP for a name
 	            false ->
-	            	RP = time_add(Ts, {0, ?PERIOD, 0}),
-	        		S#state { reset_points =reset_store(RP, Name, OldRPs) }
+	            	%% RP = time_add(Ts, {0, ?PERIOD, 0}),
+	        		S#state { reset_points =reset_store(todo, Name, OldRPs) }
 	        	end
 	end.
 
@@ -448,14 +348,17 @@ expire_melts(Period, #state { time = Now, melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} || {Name, Ts} <- Ms, in_period(Ts, Now, Period)] }.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
-in_period(Ts, Now, _) when Now < Ts -> false;
-in_period(Ts, Now, Period) when Now >= Ts ->
-	STs = micros(Ts) div (1000 * 1000),
-	SNow = micros(Now) div (1000 * 1000),
-	
-	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
-	Secs = SNow - STs,
-	Secs =< Period.
+in_period(_Ts, _Now, _) -> true.
+
+%% in_period(Ts, Now, _) when Now < Ts -> false;
+%% in_period(Ts, Now, Period) when Now >= Ts ->
+%% 	STs = micros(Ts) div (1000 * 1000),
+%% 	SNow = micros(Now) div (1000 * 1000),
+%% 	
+%% 	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
+%% 	Secs = SNow - STs,
+%% 	Secs =< Period.
+
 
 is_reset_point(Name, #state { reset_points = RPs }) ->
 	lists:keymember(Name, 2, RPs).

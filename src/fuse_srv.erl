@@ -7,6 +7,12 @@
 -include_lib("pulse_otp/include/pulse_otp.hrl").
 -endif.
 
+-ifdef(EQC_TESTING).
+-define(OS_TIMESTAMP, fuse_timer:timestamp()).
+-else.
+-define(OS_TIMESTAMP, os:timestamp()).
+-endif.
+
 %% Lifetime API
 -export([start_link/1]).
 
@@ -14,8 +20,9 @@
 -export([
     ask/1, ask/2,
     install/2,
-    melt/2,
-    reset/1]).
+    melt/1,
+    reset/1,
+    run/3]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
@@ -79,19 +86,41 @@ ask(Name, []) ->
 -spec reset(atom()) -> ok | {error, not_found}.
 reset(Name) ->
 	gen_server:call(?MODULE, {reset, Name}).
-   
+
 %% @doc melt/2 melts the fuse at a given point in time
 %% For documentation, (@see fuse:melt/2)
 %% @end
--spec melt(Name, Ts) -> ok
-    when Name :: atom(), Ts :: erlang:timestamp().
-melt(Name, Ts) ->
-	gen_server:call(?MODULE, {melt, Name, Ts}).
+-spec melt(Name) -> ok
+    when Name :: atom().
+melt(Name) ->
+	gen_server:call(?MODULE, {melt, Name}).
     
 %% sync/0 syncs the fuse_srv. For internal use only in tests
 %% @private
 sync() ->
     gen_server:call(?MODULE, sync).
+
+%% run/3 runs a thunk under a given fuse
+%% @doc Documentation is (@see fuse:run/3)
+%% @end
+%% @private
+-spec run(Name, fun(() -> {ok, Result} | {melt, Result}), [] | [sync] ) -> {ok, Result} | blown | {error, not_found}
+  when
+    Name :: atom(),
+    Result :: any().
+run(Name, Func, Opts) ->
+    case ask(Name, Opts) of
+        blown -> blown;
+        ok ->
+          case Func() of
+              {ok, Result} -> {ok, Result};
+              {melt, Result} ->
+                  melt(Name),
+                  {ok, Result}
+          end;
+        {error, Reason} ->
+          {error, Reason}
+    end.
 
 %% @private
 init([Timing]) when Timing == manual; Timing == automatic ->
@@ -113,7 +142,8 @@ handle_call({ask, Name}, _From, State) ->
 handle_call({reset, Name}, _From, State) ->
 	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};
-handle_call({melt, Name, Now}, _From, State) ->
+handle_call({melt, Name}, _From, State) ->
+	Now = ?OS_TIMESTAMP,
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F, State) end),
 	case Res of
 	  ok -> {reply, ok, State2};

@@ -9,9 +9,9 @@
 -export([
 	ask/1, ask/2,
 	install/2,
-	melt/1, melt/2,
+	melt/1,
 	reset/1,
-	run/2, run/3, run/4
+	run/2, run/3
 ]).
 
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
@@ -39,7 +39,7 @@ install(Name, Options) ->
     when
       Name :: atom(),
       Result :: any().
-run(Name, Func) -> run(Name, os:timestamp(), Func, []).
+run(Name, Func) -> run(Name, Func, []).
 
 %% @doc run/3 runs a thunk under a given fuse
 %% The difference from `run/2' is that this variant allows you to specify the options
@@ -50,28 +50,7 @@ run(Name, Func) -> run(Name, os:timestamp(), Func, []).
     Name :: atom(),
     Result :: any().
 run(Name, Func, Opts) ->
-    run(Name, os:timestamp(), Func, Opts).
-
-%% run/4 runs a thunk at a given time stamp with options
-%% @private
--spec run(Name, Timestamp, fun(() -> {ok, Result} | {melt, Result}), [] | [sync] ) -> {ok, Result} | blown | {error, not_found}
-  when
-    Name :: atom(),
-    Timestamp :: erlang:timestamp(),
-    Result :: any().
-run(Name, Ts, Func, Opts) ->
-    case ask(Name, Opts) of
-        blown -> blown;
-        ok ->
-          case Func() of
-              {ok, Result} -> {ok, Result};
-              {melt, Result} ->
-                  melt(Name, Ts),
-                  {ok, Result}
-          end;
-        {error, Reason} ->
-          {error, Reason}
-    end.
+    fuse_srv:run(Name, Func, Opts).
 
 %% @equiv ask(N, [])
 -spec ask(Name) -> ok | blown | {error, not_found}
@@ -102,12 +81,7 @@ reset(Name) ->
 -spec melt(Name) -> ok
   when Name :: atom().
 melt(Name) ->
-	melt(Name, os:timestamp()).
-	
-%% melt/2 allows to call with a specific timestamp
-%% @private
-melt(Name, Ts) ->
-	fuse_srv:melt(Name, Ts).
+	fuse_srv:melt(Name).
 
 %% Internal functions
 %% -----------------------

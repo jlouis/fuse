@@ -18,7 +18,7 @@
 
 -record(state, {
 	timing = automatic,
-        alarms = [],
+        	alarms = [],
 	history = []
 }).
 

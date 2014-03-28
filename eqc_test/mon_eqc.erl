@@ -85,11 +85,6 @@ track_entries(Entries) ->
     [?SELFCALL(track_history, [N, St]) || {N, St} <- Entries].
 
 callouts_from_history(_Alarms, _History, []) -> [];
-callouts_from_history(Alarms, History, [{N, gone} | Rest]) ->
-	[?SEQ(
-	    ?CALLOUT(alarm_handler, clear_alarm, [N], ok),
-	    ?SELFCALL(clear, [N])) |
-	callouts_from_history(Alarms, History, Rest)];
 callouts_from_history(Alarms, History, [{N, V} | Rest]) ->
 	case transition_alarms(lists:member(N, Alarms), V, lists:keyfind(N, 1, History)) of
 	    set ->

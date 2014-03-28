@@ -8,7 +8,7 @@
 -endif.
 
 -ifdef(EQC_TESTING).
--define(OS_TIMESTAMP, fuse_timer:timestamp()).
+-define(OS_TIMESTAMP, fuse_time:timestamp()).
 -else.
 -define(OS_TIMESTAMP, os:timestamp()).
 -endif.

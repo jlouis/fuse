@@ -134,7 +134,8 @@ handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs 
                 fix(Fuse);
             {value, OldFuse, _Otherfuses} ->
                 fix(OldFuse),
-                reset_timer(OldFuse)
+                _ = reset_timer(OldFuse), %% For effect only
+                ok
         end,
         {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
 handle_call({ask, Name}, _From, State) ->
@@ -251,11 +252,12 @@ blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}).
 
 fix(#fuse { name = Name }) ->
-    ets:insert(?TAB, {Name, ok}).
+    ets:insert(?TAB, {Name, ok}),
+    ok.
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->
-    erlang:cancel_timer(TRef),
+    _ = erlang:cancel_timer(TRef), %% For effect only
     F#fuse { timer_ref = none }.
 
 add_reset_timer(_Name, #state { timing = manual }, _HealTime) -> none;

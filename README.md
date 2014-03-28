@@ -14,6 +14,21 @@ Now, if we begin having errors in application `B` down the road, the problem is 
 
 The broken circuit will be retried once in a while in the system. The system will then auto-heal if connectivity comes back for the underlying systems. Note that this will be able to break cascading errors so they don't make the system fail with long latency timeouts.
 
+# Thanks
+
+Several companies should be thanked:
+
+* Issuu: for needing this tool in the first place, and lending some time to build it.
+* Erlang Solutions: For lending some development time to the project as well.
+* Quviq: for making Erlang QuickCheck and helping out with model construction.
+
+## Contributors:
+
+List of people who have made contributions to the project of substantial size:
+
+* Jesper Louis Andersen
+* Thomas Arts
+
 # Tutorial
 
 To use fuse, you must first start the fuse application:
@@ -150,7 +165,3 @@ The monitor model found the following:
 
 * Monitor handling was incorrect and the hysteresis was not implemented correctly, leading to numerous flaps on the alarms.
 
-# Contributors:
-
-* Jesper Louis Andersen
-* Thomas Arts

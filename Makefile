@@ -1,5 +1,8 @@
 PROJECT = fuse
 
+app_eqc: ERLC_OPTS += -DEQC_TESTING
+app_eqc: app
+
 # Options.
 CT_SUITES = fuse
 CT_OPTS = -cover cover.spec

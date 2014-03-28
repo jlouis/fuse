@@ -13,6 +13,8 @@
 -export([start/0, init/1]).
 -export([timestamp/0,elapse_time/1]).
 
+-export([prop_inc/0]).
+
 -define(UNIT,1000).
 
 timestamp() ->

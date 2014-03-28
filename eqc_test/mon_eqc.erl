@@ -32,11 +32,15 @@ fuses() ->
 g_fuse() ->
 	elements(fuses()).
 
-g_installed(#state { installed = Is }) ->
-	oneof(Is).
 
+%% Bad idea to generate from the state in this way, rather use _args, 
+%% since then precondition is considered!
+%% g_installed(#state { installed = Is }) ->
+%%	elements(Is).
+
+%% elements, since we want to shrink blown to default state (ok)
 g_state() ->
-	oneof([ok, blown]).
+	elements([ok, blown]).
 
 %% Initial state
 initial_state() -> #state{ }.
@@ -45,31 +49,37 @@ initial_state() -> #state{ }.
 install(_Name) ->
 	ok.
 
-install_pre(#state { installed = Is }) ->
-	length(Is) < length(fuses()).
+%% Only install new fuses
+%% Since there is no code related to installation, there is no purpose to test
+%% re-installation of existing fuses.
+install_pre(#state { installed = Is }, [Name]) ->
+	not lists:member(Name, Is).
 
+%% We might pick an existing fuse, but we will then filter with a precondition, 
+%% which we anyway need for shrinking.
 install_args(_S) ->
 	[g_fuse()].
 
+%% Add new fuse at the end for better shrinking behaviour
 install_next(#state { installed = Is } = S, _V, [Name]) ->
-	case lists:member(Name, Is) of
-	  false -> S#state { installed = [Name | Is] };
-	  true -> S
-	end.
+        S#state { installed = Is ++ [Name] }.
 
 process(Entries) ->
 	make_table(Entries),
 	fuse_mon ! timeout,
 	fuse_mon:sync(). 
 	
+%% We even consider processing without any installed fuses
 process_args(#state { installed = Is }) ->
-	K = length(Is),
-	?LET(Vs, vector(K, g_state()),
-	    [lists:zip(Is, Vs)]).
+        [ [{I, g_state()} || I<-Is] ].
+        %% I like list comprehensions, since they make for readable code
+	%% K = length(Is),
+	%% ?LET(Vs, vector(K, g_state()),
+	%%     [lists:zip(Is, Vs)]).
 
 process_callouts(#state { alarms = Alarms, history = History }, [Entries]) ->
-	?SEQ(?SEQ(track_entries(Entries)),
-	         ?SEQ(callouts_from_history(Alarms, History, lists:sort(Entries)))).
+	?SEQ(track_entries(Entries) ++
+	     callouts_from_history(Alarms, History, lists:sort(Entries))).
 	         
 track_entries(Entries) ->
     [?SELFCALL(track_history, [N, St]) || {N, St} <- Entries].
@@ -108,7 +118,7 @@ transition_alarms(Triggered, V, HEs) ->
 	    true when Blowns == 0 -> clear
 	end.
 	    
-%%% Internals SELFCALLS
+%%% Internal SELFCALLS
 set_next(#state { alarms = As } = S, _V, [Name]) ->
 	S#state { alarms = [Name | As] }.
 	

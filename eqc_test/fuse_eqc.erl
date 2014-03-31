@@ -20,9 +20,6 @@
 %% API Generators
 fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
 
-valid_fuse(F) ->
-	lists:member(F, fuses()).
-
 g_atom() ->
 	oneof([a,b,c,d,e,f]).
 
@@ -56,6 +53,22 @@ g_options() ->
 	{g_strategy(), g_refresh()}.
 
 g_initial_state() -> #state {}.
+
+g_time_inc() ->
+	choose(1, 1000000-1).
+
+%%% Let time pass
+elapse_time(N) ->
+	fuse_time:elapse_time(N).
+	
+elapse_time_args(_S) ->
+	[g_time_inc()].
+
+elapse_time_next(#state { time = T } = State, _V, [N]) ->
+	State#state { time = fuse_time:inc(T, N) }.
+
+elapse_time_post(#state { time = T } = State, [N], NewTime) ->
+	eq(fuse_time:inc(T, N), NewTime).
 
 %%% fuse_reset/2 sends timer messages into the SUT
 fuse_reset(Name, _Ts) ->
@@ -123,6 +136,9 @@ reset(Name) ->
 reset_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
+reset_pre(S, [Fuse]) ->
+	is_installed(Fuse, S).
+
 reset_args(_S) ->
 	[g_name()].
 
@@ -149,6 +165,9 @@ ask(Name) ->
 ask_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
 
+ask_pre(S, [Fuse]) ->
+	is_installed(Fuse, S).
+
 ask_args(_S) ->
 	[g_name()].
 	
@@ -167,6 +186,9 @@ run(Name, _Result, _Return, Fun) ->
 	
 run_pre(S) ->
 	resets_ok(S) andalso has_fuses_installed(S).
+
+run_pre(S, [Fuse, _Result, _Return, _Fun]) ->
+	is_installed(Fuse, S).
 
 run_args(_S) ->
     ?LET({N, Result, Return}, {g_name(), elements([ok, melt]), int()},
@@ -203,8 +225,11 @@ melt(Name) ->
 melt_pre(S) ->
     resets_ok(S) andalso has_fuses_installed(S).
 
+melt_pre(S, [Fuse]) ->
+	is_installed(Fuse, S).
+
 melt_args(_S) ->
- 	[g_name()].
+	[g_name()].
 
 melt_next(S, _V, [Name]) ->
 	case is_installed(Name, S) of
@@ -219,18 +244,7 @@ melt_next(S, _V, [Name]) ->
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
-%%% Weight distribution
-weight(#state { installed = [] }, install) -> 10;
-weight(_S, install) -> 2;
-weight(_, reset) -> 1;
-weight(_, fuse_reset) -> 10;
-weight(_, melt) -> 10;
-weight(_, run) -> 10;
-weight(_, ask) -> 10;
-weight(#state { reset_points = [] }, advance_time) -> 1;
-weight(_S, advance_time) -> 10.
-
-
+weight(_, _) -> 1.
 
 %%% PROPERTIES
 %%% ---------------------
@@ -240,6 +254,7 @@ prop_model_seq() ->
     	?FORALL(St, g_initial_state(),
 	?FORALL(Cmds, commands(?MODULE, St),
 	  begin
+	  	fuse_time:start(),
 	  	cleanup(),
 	  	{H, S, R} = run_commands(?MODULE, Cmds),
 	        pretty_commands(?MODULE, Cmds, {H, S, R},
@@ -255,6 +270,7 @@ prop_model_par() ->
                      Shrinking -> 20
 		  end,
 	  begin
+	  	fuse_time:start(),
 	  	cleanup(),
 	  	{H, S, R} = run_parallel_commands(?MODULE, ParCmds),
 	        pretty_commands(?MODULE, ParCmds, {H, S, R},
@@ -268,6 +284,7 @@ x_prop_model_pulse() ->
   ?FORALL(Cmds, parallel_commands(?MODULE, St),
   ?PULSE(HSR={_, _, R},
     begin
+      fuse_time:start(),
       cleanup(),
       run_parallel_commands(?MODULE, Cmds)
     end,

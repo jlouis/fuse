@@ -34,11 +34,13 @@ elapse_time(N) ->
       exit(timeout)
   end.
 
-
 start() ->
   case whereis(?MODULE) of
     Pid when is_pid(Pid) ->
-      ok;
+      Pid ! {reset, self()},
+      receive
+          ok -> ok
+      end;
     undefined ->
       spawn_link(fuse_time, init, [self()]),
       receive 
@@ -60,10 +62,12 @@ loop(Time) ->
       NewTime = inc(Time,N),
       From ! {timestamp, NewTime},
       loop(NewTime);
+    {reset, From} ->
+      From ! ok,
+      loop({0,0,0});
     stop ->
       Time
   end.
-
 
 inc({Mega,One,Mili},N) ->
   inc({Mega,One,Mili},N,?UNIT).

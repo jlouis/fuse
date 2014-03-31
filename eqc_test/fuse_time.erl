@@ -57,7 +57,7 @@ loop(Time) ->
   receive
     {timestamp, From} ->
       From ! {timestamp, Time},
-      loop(inc(Time,1));
+      loop(inc(Time,0));
     {elapse, From, N} ->
       NewTime = inc(Time,N),
       From ! {timestamp, NewTime},

@@ -1,9 +1,8 @@
--module(deprecated_time).
+-module(model_time).
 
 -include_lib("eqc/include/eqc.hrl").
 
 -compile(export_all).
-
 
 %% Time handling
 

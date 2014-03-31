@@ -15,7 +15,7 @@
 	installed = []
 }).
 
--define(PERIOD, 10).
+-define(PERIOD, 1000).
 
 %% API Generators
 fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
@@ -55,7 +55,7 @@ g_options() ->
 g_initial_state() -> #state {}.
 
 g_time_inc() ->
-	choose(1, 1000000-1).
+	choose(1, 1000-1).
 
 %%% Let time pass
 elapse_time(N) ->
@@ -64,14 +64,23 @@ elapse_time(N) ->
 elapse_time_args(_S) ->
 	[g_time_inc()].
 
+elapse_time_pre(#state { reset_points = [] }, [_N]) ->
+	%% If there is no reset points, we can always forward time
+	true;
+elapse_time_pre(#state { time = Ts, reset_points = [{RP, _} | _] }, [N]) ->
+	%% We can forward time, but never over a reset point
+	New = fuse_time:inc(Ts, N),
+	New =< RP.
+
 elapse_time_next(#state { time = T } = State, _V, [N]) ->
 	State#state { time = fuse_time:inc(T, N) }.
 
-elapse_time_post(#state { time = T } = State, [N], NewTime) ->
+elapse_time_post(#state { time = T }, [N], NewTime) ->
 	eq(fuse_time:inc(T, N), NewTime).
 
 %%% fuse_reset/2 sends timer messages into the SUT
-fuse_reset(Name, _Ts) ->
+fuse_reset(Name, Ts) ->
+    ok = fuse_time:forward_to(Ts),
     fuse_srv ! {reset, Name},
     fuse_srv:sync(),
     ok.
@@ -82,15 +91,17 @@ has_reset_points(_S) -> true.
 fuse_reset_pre(S) ->
 	has_reset_points(S).
 
-%% fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
-%%     [N, T].
+fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
+   [N, T].
 
+fuse_reset_pre(#state { reset_points = [{_, FuseToReset} | _] } = S, [N, _T]) ->
+	is_installed(FuseToReset, S) andalso is_installed(N, S).
 
 fuse_reset_next(#state { reset_points = [{_, _} | _] = RPs } = S, _V, [Name, Ts]) ->
     case lists:keytake(Name, 2, RPs) of
     	{value, _, NewRPs} ->
-    		clear_melts(Name,
-        		  S#state { reset_points = NewRPs, time = Ts });
+		clear_melts(Name,
+		S#state { reset_points = NewRPs, time = Ts });
          false ->
          	S#state { time = Ts }
     end.
@@ -195,12 +206,12 @@ run_args(_S) ->
         [N, Result, Return, function0({Result, Return})] ).
 
 run_next(S, _V, [_Name, ok, _, _]) -> S;
-run_next(S, _V, [Name, melt, _, _]) ->
+run_next(#state { time = Ts } = S, _V, [Name, melt, _, _]) ->
 	case is_installed(Name, S) of
 		true ->
 		    record_melt_history(Name,
 		      expire_melts(?PERIOD,
-		        record_melt(Name, todo,
+		        record_melt(Name, Ts,
 		          S#state {  })));
 		false -> S#state {  }
 	end.
@@ -231,12 +242,12 @@ melt_pre(S, [Fuse]) ->
 melt_args(_S) ->
 	[g_name()].
 
-melt_next(S, _V, [Name]) ->
+melt_next(#state { time = Ts } = S, _V, [Name]) ->
 	case is_installed(Name, S) of
 		true ->
 		    record_melt_history(Name,
 		      expire_melts(?PERIOD,
-		        record_melt(Name, todo,
+		        record_melt(Name, Ts,
 		          S)));
 		false -> S
 	end.
@@ -244,6 +255,7 @@ melt_next(S, _V, [Name]) ->
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
+weight(_, fuse_reset) -> 2;
 weight(_, _) -> 1.
 
 %%% PROPERTIES
@@ -337,22 +349,24 @@ resets_ok(#state { reset_points = [{Ts, _}|_], time = T }) ->
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} | Ms] }.
 
-record_melt_history(Name, #state {reset_points = OldRPs } = S) ->
+record_melt_history(Name, #state { time = Ts, reset_points = OldRPs } = S) ->
 	case melt_state(Name, S) of
 	    ok -> S;
 	    blown ->
 	        case is_reset_point(Name, S) of
 	            true -> S; %% Can have at most 1 RP for a name
 	            false ->
-	            	%% RP = time_add(Ts, {0, ?PERIOD, 0}),
-	        		S#state { reset_points =reset_store(todo, Name, OldRPs) }
+	                  RP = fuse_time:inc(Ts, ?PERIOD),
+	        		S#state { reset_points = reset_store(RP, Name, OldRPs) }
 	        	end
 	end.
 
 reset_store(RP, Name, []) -> [{RP, Name}];
-reset_store(RP, Name, [{P, N} | Ps]) when RP =< P ->
+reset_store(RP, Name, [{P, N} | Ps]) when P < RP ->
 	[{P, N} | reset_store(RP, Name, Ps)];
-reset_store(RP, Name, [{P, N} | Ps]) when RP > P ->
+reset_store(RP, Name, [{P, N} | Ps]) when P == RP ->
+	[{P, N} | reset_store(RP, Name, Ps)];
+reset_store(RP, Name, [{P, N} | Ps]) when P > RP ->
 	[{RP, Name}, {P, N} | Ps].
 
 clear_resets(Name, #state { reset_points = Rs } = S) ->
@@ -365,17 +379,14 @@ expire_melts(Period, #state { time = Now, melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} || {Name, Ts} <- Ms, in_period(Ts, Now, Period)] }.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
-in_period(_Ts, _Now, _) -> true.
-
-%% in_period(Ts, Now, _) when Now < Ts -> false;
-%% in_period(Ts, Now, Period) when Now >= Ts ->
-%% 	STs = micros(Ts) div (1000 * 1000),
-%% 	SNow = micros(Now) div (1000 * 1000),
-%% 	
-%% 	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
-%% 	Secs = SNow - STs,
-%% 	Secs =< Period.
-
+in_period(Ts, Now, _) when Now < Ts -> false;
+in_period(Ts, Now, Period) when Now >= Ts ->
+	STs = model_time:micros(Ts) div (1000 * 1000),
+	SNow = model_time:micros(Now) div (1000 * 1000),
+	
+	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
+	Secs = SNow - STs,
+	Secs =< Period.
 
 is_reset_point(Name, #state { reset_points = RPs }) ->
 	lists:keymember(Name, 2, RPs).

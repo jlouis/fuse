@@ -12,6 +12,7 @@
 
 -export([start/0, init/1]).
 -export([timestamp/0,elapse_time/1]).
+-export([inc/2]).
 
 -export([prop_inc/0]).
 

@@ -7,7 +7,7 @@
 		kernel,
 		stdlib,
 		sasl,
-		folsom,
+		folsom
 	]},
 	{mod, {fuse_app, []}},
 	{env, []}

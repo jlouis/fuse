@@ -77,8 +77,12 @@ ask(Name, [sync]) ->
     gen_server:call(?MODULE, {ask, Name}, 5000);
 ask(Name, []) ->
     try ets:lookup_element(?TAB, Name, 2) of
-        ok -> ok;
-        blown -> blown
+        ok -> 
+          _ = folsom_metrics:notify({metric(Name, <<"ok">>), 1}),
+          ok;
+        blown ->
+          _ = folsom_metrics:notify({metric(Name, <<"blown">>), 1}),
+          blown
     catch
         error:badarg ->
             {error, not_found}
@@ -135,6 +139,7 @@ init([]) ->
 handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs } = State) ->
         case lists:keytake(Name, #fuse.name, Fs) of
             false ->
+                install_metrics(Fuse),
                 fix(Fuse);
             {value, OldFuse, _Otherfuses} ->
                 fix(OldFuse),
@@ -151,7 +156,9 @@ handle_call({melt, Name}, _From, State) ->
 	Now = ?OS_TIMESTAMP,
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
 	case Res of
-	  ok -> {reply, ok, State2};
+	  ok ->
+	    _ = folsom_metrics:notify({metric(Name, <<"melt">>), 1}),
+	    {reply, ok, State2};
 	  not_found -> {reply, ok, State2}
 	end;
 handle_call(sync, _F, State) ->
@@ -258,6 +265,16 @@ blow(#fuse { name = Name }) ->
 fix(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, ok}),
     ok.
+
+install_metrics(#fuse { name = N }) ->
+	_ = folsom_metrics:new_spiral(metric(N, <<"ok">>)),
+	_ = folsom_metrics:new_spiral(metric(N, <<"blown">>)),
+	_ = folsom_metrics:new_meter(metric(N, <<"melt">>)),
+	ok.
+
+metric(Name, What) ->
+	B = iolist_to_binary([atom_to_list(Name), $., What]),
+	binary_to_atom(B, utf8).
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->

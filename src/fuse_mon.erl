@@ -7,8 +7,14 @@
 -include_lib("pulse_otp/include/pulse_otp.hrl").
 -endif.
 
+-ifdef(EQC_TESTING).
+-define(SEND_AFTER, fuse_time:send_after).
+-else.
+-define(SEND_AFTER, erlang:send_after).
+-endif.
+
 %% Lifetime
--export([start_link/1]).
+-export([start_link/0]).
 
 %% API
 -export([sync/0]).
@@ -17,7 +23,6 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
 -record(state, {
-	timing = automatic,
         	alarms = [],
 	history = []
 }).
@@ -25,8 +30,8 @@
 -define(PERIOD, 60*1000).
 
 %% Lifetime
-start_link(Timing) ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [Timing], []).
+start_link() ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% API
 %% @private
@@ -36,8 +41,8 @@ sync() ->
 %% Callbacks
 
 %% @private
-init([Timing]) when Timing == manual; Timing == automatic ->
-	S = #state { timing = Timing },
+init([]) ->
+	S = #state {},
 	{ok, set_timer(S)}.
 	
 %% @private
@@ -107,9 +112,8 @@ analyze(#state { history = Hs, alarms = CurAlarms } = S) ->
 
 names(Xs) -> [element(1, X) || X <- Xs].
 
-set_timer(#state { timing = manual } = S) -> S;
-set_timer(#state { timing = automatic } = S) ->
-	erlang:send_after(?PERIOD, self(), timeout),
+set_timer(#state { } = S) ->
+	?SEND_AFTER(?PERIOD, self(), timeout),
 	S.
 
 intersect([A | As], Others) ->

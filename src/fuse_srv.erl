@@ -9,12 +9,16 @@
 
 -ifdef(EQC_TESTING).
 -define(OS_TIMESTAMP, fuse_time:timestamp()).
+-define(SEND_AFTER, fuse_time:send_after).
+-define(CANCEL_TIMER, fuse_time:cancel_timer).
 -else.
 -define(OS_TIMESTAMP, os:timestamp()).
+-define(SEND_AFTER, erlang:send_after).
+-define(CANCEL_TIMER, erlang:cancel_timer).
 -endif.
 
 %% Lifetime API
--export([start_link/1]).
+-export([start_link/0]).
 
 %% Operational API
 -export([
@@ -32,14 +36,14 @@
 
 -define(TAB, fuse_state).
 
--record(state, { fuses = [], timing = automatic }).
+-record(state, { fuses = [] }).
 -record(fuse, {
 	name :: atom(),
 	intensity :: integer(),
 	period :: integer(),
 	heal_time :: integer(),
 	melt_history = [],
-        timer_ref = none
+	timer_ref = none
 }).
 
 
@@ -47,8 +51,8 @@
 %% @doc Start up the manager server for the fuse system
 %% This is assumed to be called by (@see fuse_sup). The `Timing' parameter controls how the system manages timing.
 %% @end
-start_link(Timing) ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [Timing], []).
+start_link() ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% ------
 %% @doc install/2 installs a new fuse into the running system
@@ -123,9 +127,9 @@ run(Name, Func, Opts) ->
     end.
 
 %% @private
-init([Timing]) when Timing == manual; Timing == automatic ->
+init([]) ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
-	{ok, #state{ timing = Timing }}.
+	{ok, #state{ }}.
 
 %% @private
 handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs } = State) ->
@@ -145,7 +149,7 @@ handle_call({reset, Name}, _From, State) ->
 	{reply, Reply, State2};
 handle_call({melt, Name}, _From, State) ->
 	Now = ?OS_TIMESTAMP,
-	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F, State) end),
+	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
 	case Res of
 	  ok -> {reply, ok, State2};
 	  not_found -> {reply, ok, State2}
@@ -206,7 +210,7 @@ with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
             {R, State#state { fuses = [FF | OtherFs] }}
     end.
 
-add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_time = Heal, name = Name } = Fuse, #state{} = S) ->
+add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_time = Heal, name = Name } = Fuse) ->
     R1 = add_restart_([Now | R], Now, Period),
     NewF = Fuse#fuse { melt_history = R1 },
     case length(R1) of
@@ -214,7 +218,7 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_
             {ok, NewF};
             _ ->
               blow(Fuse),
-              TRef = add_reset_timer(Name, S, Heal),
+              TRef = add_reset_timer(Name, Heal),
               {ok, NewF#fuse { timer_ref = TRef }}
     end.
 
@@ -257,9 +261,8 @@ fix(#fuse { name = Name }) ->
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->
-    _ = erlang:cancel_timer(TRef), %% For effect only
+    _ = ?CANCEL_TIMER(TRef), %% For effect only
     F#fuse { timer_ref = none }.
 
-add_reset_timer(_Name, #state { timing = manual }, _HealTime) -> none;
-add_reset_timer(Name, #state { timing = automatic}, HealTime) ->
-    erlang:send_after(HealTime, self(), {reset, Name}).
+add_reset_timer(Name, HealTime) ->
+    ?SEND_AFTER(HealTime, self(), {reset, Name}).

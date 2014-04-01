@@ -12,11 +12,15 @@
 
 -export([start/0, init/1]).
 -export([timestamp/0,elapse_time/1]).
+-export([send_after/3, cancel_timer/1]).
 -export([inc/2]).
 
 -export([prop_inc/0]).
 
 -define(UNIT,1000).
+
+send_after(_When, _Target, _Msg) -> make_ref().
+cancel_timer(_Ref) -> 0.
 
 timestamp() ->
   ?MODULE ! {timestamp, self()},

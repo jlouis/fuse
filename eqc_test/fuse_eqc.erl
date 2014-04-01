@@ -11,7 +11,7 @@
 -record(state, {
 	time = {0, 0, 0},
 	melts = [],
-	reset_points = [],
+	blown = [],
 	installed = []
 }).
 
@@ -43,7 +43,7 @@ g_strategy() ->
 			{1, {standard, int(), g_neg_int()}},
 			{1, {standard, int(), int()}}
 		])},
-		{standard, default(1, default(1, choose(1, 3))), ?PERIOD}
+		{standard, choose(1, 3), ?PERIOD}
 	).
 
 g_refresh() ->
@@ -55,7 +55,7 @@ g_options() ->
 g_initial_state() -> #state {}.
 
 g_time_inc() ->
-	choose(1, 1000-1).
+	choose(1, ?PERIOD-1).
 
 %%% Let time pass
 elapse_time(N) ->
@@ -64,14 +64,6 @@ elapse_time(N) ->
 elapse_time_args(_S) ->
 	[g_time_inc()].
 
-elapse_time_pre(#state { reset_points = [] }, [_N]) ->
-	%% If there is no reset points, we can always forward time
-	true;
-elapse_time_pre(#state { time = Ts, reset_points = [{RP, _} | _] }, [N]) ->
-	%% We can forward time, but never over a reset point
-	New = fuse_time:inc(Ts, N),
-	New =< RP.
-
 elapse_time_next(#state { time = T } = State, _V, [N]) ->
 	State#state { time = fuse_time:inc(T, N) }.
 
@@ -79,34 +71,31 @@ elapse_time_post(#state { time = T }, [N], NewTime) ->
 	eq(fuse_time:inc(T, N), NewTime).
 
 %%% fuse_reset/2 sends timer messages into the SUT
-fuse_reset(Name, Ts) ->
-    ok = fuse_time:forward_to(Ts),
+fuse_reset(Name) ->
     fuse_srv ! {reset, Name},
     fuse_srv:sync(),
     ok.
 
-has_reset_points(#state { reset_points = [] }) -> false;
-has_reset_points(_S) -> true.
+has_blown(#state { blown = [] }) -> false;
+has_blown(_S) -> true.
 
-fuse_reset_pre(S) ->
-	has_reset_points(S).
+fuse_reset_pre(#state { blown = [] }) -> false;
+fuse_reset_pre(#state {}) -> true.
 
-fuse_reset_args(#state { reset_points = [{T, N} | _] }) ->
-   [N, T].
+fuse_reset_args(#state { blown = Names }) ->
+	[elements(Names)].
 
-fuse_reset_pre(#state { reset_points = [{_, FuseToReset} | _] } = S, [N, _T]) ->
-	is_installed(FuseToReset, S) andalso is_installed(N, S).
+fuse_reset_pre(#state { blown = Blown } = S, [Name]) ->
+	is_installed(Name, S) andalso lists:member(Name, Blown).
 
-fuse_reset_next(#state { reset_points = [{_, _} | _] = RPs } = S, _V, [Name, Ts]) ->
-    case lists:keytake(Name, 2, RPs) of
-    	{value, _, NewRPs} ->
-		clear_melts(Name,
-		S#state { reset_points = NewRPs, time = Ts });
-         false ->
-         	S#state { time = Ts }
+fuse_reset_next(#state { blown = RPs } = S, _V, [Name]) ->
+    case lists:member(Name, RPs) of
+        false -> S;
+        true ->
+            clear_melts(Name, S#state { blown = lists:delete(Name, RPs) })
     end.
 
-fuse_reset_post(_S, [_Name, _Ts], R) ->
+fuse_reset_post(_S, [_Name], R) ->
 	eq(R, ok).
 
 %%% install/2 puts a new fuse into the system
@@ -145,7 +134,7 @@ reset(Name) ->
 	fuse:reset(Name).
 
 reset_pre(S) ->
-	resets_ok(S) andalso has_fuses_installed(S).
+	has_fuses_installed(S).
 
 reset_pre(S, [Fuse]) ->
 	is_installed(Fuse, S).
@@ -174,7 +163,7 @@ ask(Name) ->
 	fuse:ask(Name, [sync]).
 	
 ask_pre(S) ->
-	resets_ok(S) andalso has_fuses_installed(S).
+	has_fuses_installed(S).
 
 ask_pre(S, [Fuse]) ->
 	is_installed(Fuse, S).
@@ -196,7 +185,7 @@ run(Name, _Result, _Return, Fun) ->
 	fuse:run(Name, Fun, [sync]).
 	
 run_pre(S) ->
-	resets_ok(S) andalso has_fuses_installed(S).
+	has_fuses_installed(S).
 
 run_pre(S, [Fuse, _Result, _Return, _Fun]) ->
 	is_installed(Fuse, S).
@@ -234,7 +223,7 @@ melt(Name) ->
 	fuse:melt(Name).
 
 melt_pre(S) ->
-    resets_ok(S) andalso has_fuses_installed(S).
+    has_fuses_installed(S).
 
 melt_pre(S, [Fuse]) ->
 	is_installed(Fuse, S).
@@ -255,7 +244,6 @@ melt_next(#state { time = Ts } = S, _V, [Name]) ->
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
-weight(_, fuse_reset) -> 2;
 weight(_, _) -> 1.
 
 %%% PROPERTIES
@@ -326,8 +314,8 @@ valid_opts(_) ->
 melt_state(Name, S) ->
 	count_state(fuse_intensity(Name, S) - count_melts(Name, S)).
 
-is_blown(Name, #state { reset_points = RPs }) ->
-	lists:keymember(Name, 2, RPs).
+is_blown(Name, #state { blown = BlownFuses }) ->
+	lists:member(Name, BlownFuses).
 	
 fuse_intensity(Name, #state { installed = Inst }) ->
 	{Name, Count} = lists:keyfind(Name, 1, Inst),
@@ -342,35 +330,22 @@ count_melts(Name, #state { melts = Ms }) ->
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
-resets_ok(#state { reset_points = [] }) -> true;
-resets_ok(#state { reset_points = [{Ts, _}|_], time = T }) ->
-	T =< Ts.
-
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
 	S#state { melts = [{Name, Ts} | Ms] }.
 
-record_melt_history(Name, #state { time = Ts, reset_points = OldRPs } = S) ->
+record_melt_history(Name, #state { blown = OldRPs } = S) ->
 	case melt_state(Name, S) of
 	    ok -> S;
 	    blown ->
-	        case is_reset_point(Name, S) of
+	        case lists:member(Name, OldRPs) of
 	            true -> S; %% Can have at most 1 RP for a name
 	            false ->
-	                  RP = fuse_time:inc(Ts, ?PERIOD),
-	        		S#state { reset_points = reset_store(RP, Name, OldRPs) }
+	            	S#state { blown = OldRPs ++ [Name] }
 	        	end
 	end.
 
-reset_store(RP, Name, []) -> [{RP, Name}];
-reset_store(RP, Name, [{P, N} | Ps]) when P < RP ->
-	[{P, N} | reset_store(RP, Name, Ps)];
-reset_store(RP, Name, [{P, N} | Ps]) when P == RP ->
-	[{P, N} | reset_store(RP, Name, Ps)];
-reset_store(RP, Name, [{P, N} | Ps]) when P > RP ->
-	[{RP, Name}, {P, N} | Ps].
-
-clear_resets(Name, #state { reset_points = Rs } = S) ->
-	S#state { reset_points = [{T, N} || {T, N} <- Rs, N /= Name] }.
+clear_resets(Name, #state { blown = Rs } = S) ->
+	S#state { blown = [N || N <- Rs, N /= Name] }.
 	
 clear_melts(Name, #state { melts = Ms } = S) ->
 	S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
@@ -387,9 +362,6 @@ in_period(Ts, Now, Period) when Now >= Ts ->
 	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
 	Secs = SNow - STs,
 	Secs =< Period.
-
-is_reset_point(Name, #state { reset_points = RPs }) ->
-	lists:keymember(Name, 2, RPs).
 
 %% PULSE instrumentation,
 the_prop() -> x_prop_model_pulse().

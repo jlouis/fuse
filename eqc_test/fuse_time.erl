@@ -11,7 +11,7 @@
 -include_lib("eqc/include/eqc.hrl").
 
 -export([start/0, init/1]).
--export([timestamp/0,elapse_time/1, forward_to/1]).
+-export([timestamp/0,elapse_time/1]).
 -export([inc/2]).
 
 -export([prop_inc/0]).
@@ -32,15 +32,6 @@ elapse_time(N) ->
      {timestamp, Time} -> Time
   after 1000 ->
       exit(timeout)
-  end.
-
-forward_to(TP) ->
-  ?MODULE ! {forward_to, self(), TP},
-  receive
-    ok -> ok;
-    {error, Reason} -> {error, Reason}
-  after 200 ->
-  	exit(timeout)
   end.
 
 start() ->
@@ -67,12 +58,6 @@ loop(Time) ->
     {timestamp, From} ->
       From ! {timestamp, Time},
       loop(inc(Time,0));
-    {forward_to, From, NewTime} when NewTime >= Time ->
-      From ! ok,
-      loop(NewTime);
-    {forward_to, From, NewTime} when NewTime < Time ->
-      From ! {error, clock_skew_backwards},
-      loop(Time);
     {elapse, From, N} ->
       NewTime = inc(Time,N),
       From ! {timestamp, NewTime},

@@ -1,6 +1,6 @@
 # Fuse — A Circuit Breaker implementation for Erlang
 
-This application implements a so-called circuit breaker implementation for Erlang.
+This application implements a so-called circuit-breaker for Erlang.
 
 [![Build Status](https://travis-ci.org/jlouis/fuse.png?branch=master)](https://travis-ci.org/jlouis/fuse)
 
@@ -10,9 +10,15 @@ When we build large systems, one of the problems we face is what happens when we
 
 	app_A → app_B → app_C
 	
-Now, if we begin having errors in application `B` down the road, the problem is that application `A` needs to handle this by waiting for a timeout of Application B all the time. The problem is that this incurs latency in the code base. A Circuit Breaker detects the error in the underlying system and then avoids making further queries to the underlying system. This allows you to handle the breakage systematically in the system.
+Now, if we begin having errors in application `B` down the road, the problem is that application `A` needs to handle this by waiting for a timeout of Application B all the time. This incurs latency in the code base. A Circuit Breaker detects the error in the underlying system and then avoids making further queries. This allows you to handle the breakage systematically in the system. For long cascades, layering of circuit breakers allow one to detect exactly which application is responsible for the breakage.
 
-The broken circuit will be retried once in a while in the system. The system will then auto-heal if connectivity comes back for the underlying systems. Note that this will be able to break cascading errors so they don't make the system fail with long latency timeouts.
+A broken circuit introduces some good characteristics in the system:
+
+* There is no buffer/queue buildup since requests can get passed immediately. No waste of resources is had.
+* returning from a broken circuit has favorable latency close to 0μs. This allows code to try a backup system quickly, or to give negative feedback.
+* Clients can discriminate a system with slow response time from one that is genuinely broken. For the vast majority of clients, this is beneficial. A front-end can opt to skip displaying of certain elements, should the backend parts be down.
+
+The broken circuit will be retried once in a while. The system will then auto-heal if connectivity comes back for the underlying systems. 
 
 # Thanks
 
@@ -35,7 +41,7 @@ To use fuse, you must first start the fuse application:
 
 	application:start(fuse).
 	
-but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must install a fuse into the system by *installing* a fuse descriptions:
+but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must install a fuse into the system by *installing* a fuse description. This is usually done as part of the `application:start/1` callback:
 
 	Name = database_fuse
 	Strategy = {standard, MaxR, MaxT},
@@ -73,14 +79,14 @@ Now suppose you have a working fuse, but you suddenly realize you get errors of 
 
 	case emysql:execute(Stmt) of
 	    {error, connection_lock_timeout} ->
-	    	fuse:melt(database_fuse),
+	    	ok = fuse:melt(database_fuse),
 	    	…
 	    …
 	end,
 	
-The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will let a single request through again to make sure it works like expected. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
+The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct.Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
 
-* It is overload-safe against the fuse code. Even if processes can outrun the fuse, it cannot build up queue due to this.
+* It is overload-safe against the fuse code. Even if processes can outrun the fuse, it cannot build up queue due to this (though this is only the case if there is a bounded number of accessors to the fuse).
 * It is on the slow-path. When we melt, we are in a bad situation. So waiting a bit more before given an answer back is probably not going to be a problem. We picked this choice explicitly in order to make sure it works under load.
 
 Another way to run the fuse is to use a wrapper function. Suppose you have a function with the following spec:
@@ -101,16 +107,20 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 
 this function will do the asking and melting itself based on the output of the underlying function. The `sync` variant does so synchronously, while the simpler variant is subject to (benign) races like in the above example. The `run/2,3` invocation is often easier to handle in programs.
 
-## Options to give to the fuse (TODO)
+## Monitoring fuse state
 
-The fuses support several options which you can give them in order to configure them appropriately:
+Fuses installed into the system are automatically instrumented in two ways, `folsom` and the `alarm_handler`.
 
-* `alarm` — When the fuse blows, raise the appropriate alarm through SASL
-* `folsom_metric` — Keep folsom metric data under the given prefix
+A fuse named `foo` reports to `folsom` with the following stats:
+
+* Two spirals: `foo.ok` and `foo.blown` which are increased whenever someone `ask/1`'s the fuse.
+* A meter: `foo.melt` whenever the fuse is melted.
+
+Furthermore, fuses raises alarms when they are blown. They raise an alarm under the same name as the fuse itself. To clear the alarm, the system uses hysteresis. It has to see 3 consecutive `ok` states on a fuse before clearing the alarm. This is to avoid alarm states from flapping excessively.
 
 # Tests
 
-Fuse is written with two kinds of tests. First of all, it uses a set of Common Test test cases which runs the basic functionality of the system. Furthermore, fuse is written with Erlang QuickCheck test cases. EQC tests are written before the corresponding code is written, and as such, this is EQC Driven Development.
+Fuse is written with two kinds of tests. First of all, it uses a set of Common Test test cases which runs the basic functionality of the system. Furthermore, fuse is written with Erlang QuickCheck test cases. EQC tests are written before the corresponding code is written, and as such, this is "Property Driven Development".
 
 To run the standard tests, execute:
 
@@ -127,7 +137,9 @@ And then in the Erlang console, you can execute
 	error_logger:tty(false). % Shut up the error logger while running tests
 	eqc:module(fuse_eqc).
 
-I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests.
+I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
+
+Great care has been taken in order to make sure fuse can be part of the error kernel of a system. The main fuse server is not supposed to crash under any circumstance. The monitoring application may crash since it is only part of the reporting. While important, it is not essential to correct operation.
 
 ## EQC Test harness features:
 
@@ -135,21 +147,26 @@ I am deliberately keeping them out of the travis build due to the necessity of E
 * Uses negative testing to make sure the `install/2` command rejects wrong options correctly.
 * Uses negative testing to make sure return values are correct for every other command
 * Uses sequential testing to make sure command invocation is sane.
-* Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time
-* Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct
+* Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time. The assumption is all calls are made with the synchronous API. For most practical uses, one can skip synchronous `ask/1` calls and use the async variants.
+* Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct.
 * Models time in EQC and controls time advancement to test for situations where timing is a problem in the system under test.
-* Uses EQC Component to monitor correct handling of alarms triggering and clearing in the Erlang system.
+* Uses EQC Component to monitor correct handling of alarms triggering and clearing in the Erlang system with correct hysteresis.
 
 Furthermore:
 
 * The EQC Test harness tests its internal consistency of time handling by using properties to test its own model for correctness.
+* Makes a case as to why timestamping should happen inside `fuse_srv` and not outside (clocks can skew and time can go backwards if clients draw from a time source. In a distributed setting, it is even worse).
 
 # Subtle Errors found by EQC
+
+Software construction is a subtle and elusive business. Most errors in software are weeded out early in the development cycle, the errors that remain are really rare and hard to find. Static type systems will only raise the bar and make the remaining errors even more slippery from your grasp. Thus, the only way to remove these errors is to use a tool which is good at construction elusive counter-examples. Erlang QuickCheck is such a tool.
+
+Development guided by properties leads to a code base which is considerably smaller. In the course of building `fuse` we iteratively removed functionality from the code base which proved to be impossible to implement correctly. Rather than ending up with a lot of special cases, development by property simply suggested the removal of certain nasty configurations of the software, which does nothing but makes it more bloated. Worse—one could argue some of these configuration would never be used in practice, leading to written code which would never be traversed.
 
 ## General:
 
 * Numerous small mistakes have been weeded out while developing the code.
-* EQC has guided the design in a positive way. This has lead to simpler code with fewer errors.
+* EQC has guided the design in a positive way. This has lead to smaller and simpler code with fewer errors.
 * EQC has suggested improvements to the API. Specifically in the area of synchronous calls and race condition avoidance.
 
 ## Subtleties:
@@ -160,6 +177,8 @@ Furthermore:
 * EQC and careful consideration came up with the idea to separate the alarm handling code from the fuse handling code in the system, to protect a faulty alarm handler from taking down the fuse system.
 * EQC, using PULSE to test, figured out we need a way to synchronize `ask/1`. The problem is that this runs outside the `fuse_srv` which leads the parallel race conditions. This was mitigated by adding a variant, `ask/2` which is sync-safe and poses no race conditions.
 * EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
+* EQC, and helpful hints by Thomas Arts, made it evident that the method used to draw timestamps was incorrect. A new model, where timestamps are generated inside the fuse system was much easier to test and verify.
+* EQC made it clear exactly how time is used in the system.
 
 The monitor model found the following:
 

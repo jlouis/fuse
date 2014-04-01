@@ -321,8 +321,12 @@ x_prop_model_pulse() ->
 
 cleanup() ->
   error_logger:tty(false),
-  (catch application:set_env(fuse, timing, manual)),
   (catch application:stop(fuse)),
+  application:load(sasl),
+  application:set_env(sasl, sasl_error_logger, false),
+  application:set_env(sasl, errlog_type, error),
+  application:start(sasl),
+  application:start(folsom),
   ok = application:start(fuse).
 
 %%% INTERNALS

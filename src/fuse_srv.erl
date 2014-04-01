@@ -269,7 +269,7 @@ fix(#fuse { name = Name }) ->
 install_metrics(#fuse { name = N }) ->
 	_ = folsom_metrics:new_spiral(metric(N, <<"ok">>)),
 	_ = folsom_metrics:new_spiral(metric(N, <<"blown">>)),
-	_ = folsom_metrics:new_meter(metric(N, <<"melt">>)),
+	_ = folsom_metrics:new_meter_reader(metric(N, <<"melt">>)),
 	ok.
 
 metric(Name, What) ->

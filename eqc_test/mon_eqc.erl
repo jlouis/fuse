@@ -133,7 +133,7 @@ track_history_next(#state { history = Installed } = S, _V, [N, V]) ->
  	S#state { history = Update }.
  
 startup() ->
-	{ok, _Pid} = fuse_mon:start_link(manual),
+	{ok, _Pid} = fuse_mon:start_link(),
 	ok.
 	
 cleanup() ->

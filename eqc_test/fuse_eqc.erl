@@ -159,9 +159,6 @@ reset(Name) ->
 reset_pre(S) ->
 	has_fuses_installed(S).
 
-reset_pre(S, [Fuse]) ->
-	is_installed(Fuse, S).
-
 reset_args(_S) ->
 	[g_name()].
 

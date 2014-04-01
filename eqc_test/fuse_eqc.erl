@@ -1,3 +1,4 @@
+%%% The fuse_eqc module implements a Quickcheck model for the Fuse main gen_server.
 -module(fuse_eqc).
 
 -include_lib("eqc/include/eqc.hrl").
@@ -8,25 +9,31 @@
 
 -compile(export_all).
 
+%%% Model state.
 -record(state, {
-	time = {0, 0, 0},
-	melts = [],
-	blown = [],
-	installed = []
+	time = {0, 0, 0},  % Current time in the model. We track time to handle melting time points.
+	melts = [], % History of current melts issued to the SUT
+	blown = [], % List of currently blown fuses
+	installed = [] % List of installed fuses, with their configuration.
 }).
 
 -define(PERIOD, 1000).
 
 %% API Generators
+
+%% fuses/0 is the list of fuses we support in the model for testing purposes.
 fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
 
+%% g_atom/0 generates a simple atom from a short list.
 g_atom() ->
 	oneof([a,b,c,d,e,f]).
 
+%% g_name/0 generates one of the valid fuses at random
 g_name() ->
-	  oneof(fuses()).
+	  elements(fuses()).
 
-%% Thomas says this is a bad idea, since we can rule out the name by a precondition
+%% Thomas says this is a bad idea, since we can rule out the name by a precondition (_pre/3)
+%% As a result we stopped using functions like these.
 %% g_installed(S) ->
 %%	fault(g_name(), oneof(installed_names(S))).
 
@@ -35,6 +42,9 @@ g_neg_int() ->
 	?LET(N, nat(),
 		-N).
 
+%% g_strategy/0 generates a random fuse configuration.
+%% At times, this will generate a faulty strategy to make sure we correctly
+%% reject incorrect strategies.
 g_strategy() ->
 	fault(
 		{frequency([
@@ -46,18 +56,25 @@ g_strategy() ->
 		{standard, choose(1, 3), ?PERIOD}
 	).
 
+%% g_refresh()/0 generates a refresh setting.
 g_refresh() ->
 	{reset, 60000}.
 	
+%% g_options() generates install options
 g_options() ->
 	{g_strategy(), g_refresh()}.
 
+%% g_initial_state/0 generates the initial system state
 g_initial_state() -> #state {}.
 
+%% g_time_inc/0 generates a time increment.
 g_time_inc() ->
-	choose(1, ?PERIOD-1).
+	choose(1, 1000-1).
 
-%%% Let time pass
+%% elapse_time
+%% ---------------------------------------------------------------
+%% Let time pass in the model. This increases time by an amount so calls will happen
+%% at a later point than normally.
 elapse_time(N) ->
 	fuse_time:elapse_time(N).
 	
@@ -70,24 +87,27 @@ elapse_time_next(#state { time = T } = State, _V, [N]) ->
 elapse_time_post(#state { time = T }, [N], NewTime) ->
 	eq(fuse_time:inc(T, N), NewTime).
 
-%%% fuse_reset/2 sends timer messages into the SUT
+%% fuse_reset/2 sends timer messages into the SUT
+%% ---------------------------------------------------------------
+%% Heal a fuse which has been blown in the system.
 fuse_reset(Name) ->
     fuse_srv ! {reset, Name},
-    fuse_srv:sync(),
+    fuse_srv:sync(), %% synchronize to avoid a race condition.
     ok.
 
-has_blown(#state { blown = [] }) -> false;
-has_blown(_S) -> true.
-
+%% You can reset a fuse if there is a blown fuse in the system.
 fuse_reset_pre(#state { blown = [] }) -> false;
 fuse_reset_pre(#state {}) -> true.
 
 fuse_reset_args(#state { blown = Names }) ->
 	[elements(Names)].
 
+%% Fuses will only be reset if their state is among the installed and are blown.
+%% Precondition checking is effective at shrinking down failing models.
 fuse_reset_pre(#state { blown = Blown } = S, [Name]) ->
 	is_installed(Name, S) andalso lists:member(Name, Blown).
 
+%% Note: when a fuse heals, the internal state is reset.
 fuse_reset_next(#state { blown = RPs } = S, _V, [Name]) ->
     case lists:member(Name, RPs) of
         false -> S;
@@ -98,8 +118,8 @@ fuse_reset_next(#state { blown = RPs } = S, _V, [Name]) ->
 fuse_reset_post(_S, [_Name], R) ->
 	eq(R, ok).
 
-%%% install/2 puts a new fuse into the system
-%%% ---------------------
+%% install/2 puts a new fuse into the system
+%% ---------------------------------------------------------------
 install(Name, Opts) ->
 	try fuse:install(Name, Opts) of
 		ok -> ok
@@ -111,6 +131,8 @@ install(Name, Opts) ->
 install_args(_S) ->
 	[g_name(), g_options()].
 
+%% When installing new fuses, the internal state is reset for the fuse.
+%% Also, consider if the installed is valid at all.
 install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
 	case valid_opts(Opts) of
 	    false ->
@@ -119,7 +141,7 @@ install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
 	        {{_, Count, _}, _} = Opts,
 	        T = {Name, Count},
 	        clear_melts(Name,
-	          clear_resets(Name,
+	          clear_blown(Name,
 	            S#state { installed = lists:keystore(Name, 1, Is, T) }))
 	end.
 
@@ -129,7 +151,8 @@ install_post(_S, [_Name, Opts], R) ->
 	    false -> eq(R, badarg)
 	end.
 
-%%% reset/1 resets a fuse back to its policy standard
+%% reset/1 resets a fuse back to its initial state
+%% ---------------------------------------------------------------
 reset(Name) ->
 	fuse:reset(Name).
 
@@ -148,17 +171,18 @@ reset_post(S, [Name], Ret) ->
         false -> eq(Ret, {error, not_found})
     end.
 
+%% Resetting a fuse resets its internal state
 reset_next(S, _V, [Name]) ->
     case is_installed(Name, S) of
         false -> S;
         true ->
-        		clear_resets(Name,
+        		clear_blown(Name,
         		  clear_melts(Name,
         		    S))
     end.
 
 %%% ask/1 asks about the state of a fuse that exists
-%%% ---------------------
+%% ---------------------------------------------------------------
 ask(Name) ->
 	fuse:ask(Name, [sync]).
 	
@@ -180,7 +204,7 @@ ask_post(S, [Name], Ret) ->
 	end.
 
 %%% run/1 runs a function (thunk) on the circuit breaker
-%%% ---------------------
+%% ---------------------------------------------------------------
 run(Name, _Result, _Return, Fun) ->
 	fuse:run(Name, Fun, [sync]).
 	
@@ -218,7 +242,7 @@ run_post(S, [Name, _Result, Return, _], Ret) ->
 
 
 %%% melt/1 melts the fuse a little bit
-%%% ---------------------
+%% ---------------------------------------------------------------
 melt(Name) ->
 	fuse:melt(Name).
 
@@ -247,8 +271,9 @@ melt_post(_S, _, Ret) ->
 weight(_, _) -> 1.
 
 %%% PROPERTIES
-%%% ---------------------
-%% Sequential test
+%% ---------------------------------------------------------------
+
+%% Test the stateful system against a random sequential command sequence.
 prop_model_seq() ->
     fault_rate(1, 40,
     	?FORALL(St, g_initial_state(),
@@ -261,6 +286,7 @@ prop_model_seq() ->
 	  		aggregate(command_names(Cmds), R == ok))
 	  end))).
 
+%% Test the stateful system against a random parallel command sequence with a sequential prefix.
 prop_model_par() ->
     fault_rate(1, 40,
      ?LET(Shrinking, parameter(shrinking, false), 
@@ -277,6 +303,7 @@ prop_model_par() ->
 	  		aggregate(command_names(ParCmds), R == ok))
 	  end))))).
 
+%% Run a test under PULSE to randomize the process schedule as well.
 x_prop_model_pulse() ->
   ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),
          	fun() -> erlang:system_flag(schedulers_online, N) end end,
@@ -344,7 +371,7 @@ record_melt_history(Name, #state { blown = OldRPs } = S) ->
 	        	end
 	end.
 
-clear_resets(Name, #state { blown = Rs } = S) ->
+clear_blown(Name, #state { blown = Rs } = S) ->
 	S#state { blown = [N || N <- Rs, N /= Name] }.
 	
 clear_melts(Name, #state { melts = Ms } = S) ->
@@ -366,6 +393,7 @@ in_period(Ts, Now, Period) when Now >= Ts ->
 %% PULSE instrumentation,
 the_prop() -> x_prop_model_pulse().
 
+%% test/1 is a helper which makes it easy to PULSE test the code
 test({N, h})   -> test({N * 60, min});
 test({N, min}) -> test({N * 60, sec});
 test({N, s})   -> test({N, sec});

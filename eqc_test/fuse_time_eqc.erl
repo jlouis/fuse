@@ -1,6 +1,6 @@
 %%% @author Thomas Arts 
 %%% @copyright (C) 2014, Quviq AB
-%%% @doc Showing that os:timestamp does not behave as expected
+%%% @doc Showing that the fuse_time module behaves as expected
 %%%
 %%% @end
 %%% Created : 26 Mar 2014 by Thomas Arts <thomas.arts@quviq.com>
@@ -23,7 +23,7 @@ timestamp_next(_S, NewTime, []) ->
   NewTime.
 
 timestamp_post(S, [], NewTime) ->
-  S < NewTime.
+  S =< NewTime.
 
 elapse_time_command(_S) ->
   {call, fuse_time, elapse_time, [?LET(N,nat(),N+1)]}.
@@ -32,7 +32,7 @@ elapse_time_post(S, [_], NewTime) ->
   less(S,NewTime).
 
 
-less(X,Y) when X<Y ->
+less(X,Y) when X=<Y ->
   true;
 less(X,Y) ->
   {X,'>=',Y}.

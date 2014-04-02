@@ -185,9 +185,6 @@ ask(Name) ->
 ask_pre(S) ->
 	has_fuses_installed(S).
 
-ask_pre(S, [Fuse]) ->
-	is_installed(Fuse, S).
-
 ask_args(_S) ->
 	[g_name()].
 	
@@ -206,9 +203,6 @@ run(Name, _Result, _Return, Fun) ->
 	
 run_pre(S) ->
 	has_fuses_installed(S).
-
-run_pre(S, [Fuse, _Result, _Return, _Fun]) ->
-	is_installed(Fuse, S).
 
 run_args(_S) ->
     ?LET({N, Result, Return}, {g_name(), elements([ok, melt]), int()},
@@ -244,9 +238,6 @@ melt(Name) ->
 
 melt_pre(S) ->
     has_fuses_installed(S).
-
-melt_pre(S, [Fuse]) ->
-	is_installed(Fuse, S).
 
 melt_args(_S) ->
 	[g_name()].

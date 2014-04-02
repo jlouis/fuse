@@ -415,8 +415,26 @@ recheck() -> eqc:recheck(the_prop()).
 check()   -> eqc:check(the_prop()).
 check(CE) -> eqc:check(the_prop(), CE).
 
-verbose()   -> eqc:check(eqc_statem:show_states(the_prop())).
-verbose(CE) -> eqc:check(eqc_statem:show_states(the_prop(), CE)).
+t(seq, {T, Unit}) ->
+    eqc:testing_time(eval_time(T, Unit), prop_model_seq());
+t(seq, N) when is_integer(N) ->
+    eqc:numtests(N, prop_model_seq());
+t(par, {T, Unit}) ->
+    eqc:testing_time(eval_time(T, Unit), prop_model_par());
+t(par, N) when is_integer(N) ->
+    eqc:numtests(N, prop_model_par()).
+    
+
+
+eval_time(N, h)   -> eval_time(N*60, min);
+eval_time(N, min) -> eval_time(N*60, sec);
+eval_time(N, sec) -> N.
+
+r(What, T) ->
+    eqc:quickcheck(t(What, T)).
+
+rv(What, T) ->
+    eqc:quickcheck(eqc_statem:show_states(t(What, T))).
 
 pulse_instrument() ->
   [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ].

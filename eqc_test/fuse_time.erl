@@ -17,7 +17,7 @@
 
 -export([prop_inc/0]).
 
--define(UNIT,1000).
+-define(UNIT,1000*1000).
 
 send_after(_When, _Target, _Msg) -> make_ref().
 cancel_timer(_Ref) -> 0.
@@ -76,12 +76,12 @@ loop(Time) ->
 inc({Mega,One,Mili},N) ->
   inc({Mega,One,Mili},N,?UNIT).
        
-inc({Mega,One,Mili}, N, Unit) ->
-  NewTime = Mega*Unit*Unit + One*Unit + Mili + N,
+inc({Mega,One,Micro}, N, Unit) ->
+  NewTime = Mega*Unit*Unit + One*Unit + Micro + N,
   NMega = NewTime div (Unit*Unit),
   NOne  = (NewTime rem (Unit*Unit)) div Unit,
-  NMili = NewTime rem Unit,
-  {NMega, NOne, NMili}.
+  NMicro = NewTime rem Unit,
+  {NMega, NOne, NMicro}.
 
 prop_inc() ->
   ?FORALL(Base, choose(2,10),

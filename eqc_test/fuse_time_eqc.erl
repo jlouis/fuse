@@ -25,8 +25,12 @@ timestamp_next(_S, NewTime, []) ->
 timestamp_post(S, [], NewTime) ->
   S =< NewTime.
 
+time_inc() ->
+    ?LET(N, choose(0, 1000*1000),
+        N+1).
+
 elapse_time_command(_S) ->
-  {call, fuse_time, elapse_time, [?LET(N,nat(),N+1)]}.
+  {call, fuse_time, elapse_time, [time_inc()]}.
 
 elapse_time_post(S, [_], NewTime) ->
   less(S,NewTime).

@@ -322,6 +322,12 @@ cleanup() ->
   application:start(folsom),
   ok = application:start(fuse).
 
+%%% Helpers
+%%% ---------------------
+
+sample() ->
+	eqc_gen:sample(commands(?MODULE, g_initial_state())).
+
 %%% INTERNALS
 %%% ---------------------
 

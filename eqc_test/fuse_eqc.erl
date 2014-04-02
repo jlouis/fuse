@@ -17,8 +17,6 @@
 	installed = [] % List of installed fuses, with their configuration.
 }).
 
--define(PERIOD, 1000).
-
 %% API Generators
 
 %% fuses/0 is the list of fuses we support in the model for testing purposes.
@@ -28,9 +26,10 @@ fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
 g_atom() ->
 	oneof([a,b,c,d,e,f]).
 
-%% g_name/0 generates one of the valid fuses at random
+%% g_name/0 generates one of the fuses at random.
+%% fault injects provably invalid names
 g_name() ->
-	  elements(fuses()).
+	  fault(g_atom(), elements(fuses())).
 
 %% Thomas says this is a bad idea, since we can rule out the name by a precondition (_pre/3)
 %% As a result we stopped using functions like these.
@@ -53,7 +52,7 @@ g_strategy() ->
 			{1, {standard, int(), g_neg_int()}},
 			{1, {standard, int(), int()}}
 		])},
-		{standard, choose(1, 3), ?PERIOD}
+		{standard, choose(1, 3), choose(1, 3)}
 	).
 
 %% g_refresh()/0 generates a refresh setting.
@@ -69,7 +68,7 @@ g_initial_state() -> #state {}.
 
 %% g_time_inc/0 generates a time increment.
 g_time_inc() ->
-	choose(1, 1000-1).
+	choose(1, 1000*1000).
 
 %% elapse_time
 %% ---------------------------------------------------------------
@@ -138,8 +137,8 @@ install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
 	    false ->
 	        S;
 	    true ->
-	        {{_, Count, _}, _} = Opts,
-	        T = {Name, Count},
+	        {{standard, Count, Period}, _} = Opts,
+	        T = {Name, Count, Period},
 	        clear_melts(Name,
 	          clear_blown(Name,
 	            S#state { installed = lists:keystore(Name, 1, Is, T) }))
@@ -220,7 +219,7 @@ run_next(#state { time = Ts } = S, _V, [Name, melt, _, _]) ->
 	case is_installed(Name, S) of
 		true ->
 		    record_melt_history(Name,
-		      expire_melts(?PERIOD,
+		      expire_melts(period(Name, S),
 		        record_melt(Name, Ts,
 		          S#state {  })));
 		false -> S#state {  }
@@ -256,7 +255,7 @@ melt_next(#state { time = Ts } = S, _V, [Name]) ->
 	case is_installed(Name, S) of
 		true ->
 		    record_melt_history(Name,
-		      expire_melts(?PERIOD,
+		      expire_melts(period(Name, S),
 		        record_melt(Name, Ts,
 		          S)));
 		false -> S
@@ -346,7 +345,7 @@ is_blown(Name, #state { blown = BlownFuses }) ->
 	lists:member(Name, BlownFuses).
 	
 fuse_intensity(Name, #state { installed = Inst }) ->
-	{Name, Count} = lists:keyfind(Name, 1, Inst),
+	{Name, Count, _} = lists:keyfind(Name, 1, Inst),
 	Count.
 
 count_state(N) when N < 0 -> blown;
@@ -354,6 +353,10 @@ count_state(_N) -> ok.
 
 count_melts(Name, #state { melts = Ms }) ->
 	length([N || {N, _} <- Ms, N == Name]).
+
+period(Name, #state { installed = Is }) ->
+	{_, _, Period} = lists:keyfind(Name, 1, Is),
+	Period.
 
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.

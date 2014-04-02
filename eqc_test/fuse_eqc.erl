@@ -255,7 +255,13 @@ melt_next(#state { time = Ts } = S, _V, [Name]) ->
 melt_post(_S, _, Ret) ->
 	eq(Ret, ok).
 
-weight(_, _) -> 1.
+%%% Command weight distribution
+%% ---------------------------------------------------------------
+weight(_, install) -> 2;
+weight(_, reset) -> 2;
+weight(_, run) -> 3;
+weight(_, fuse_reset) -> 20;
+weight(_, _) -> 10.
 
 %%% PROPERTIES
 %% ---------------------------------------------------------------

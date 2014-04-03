@@ -32,7 +32,7 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
 %% Private
--export([sync/0]).
+-export([sync/0, q_melts/0]).
 
 -define(TAB, fuse_state).
 
@@ -108,6 +108,9 @@ melt(Name) ->
 sync() ->
     gen_server:call(?MODULE, sync).
 
+q_melts() ->
+    gen_server:call(?MODULE, q_melts).
+
 %% run/3 runs a thunk under a given fuse
 %% @doc Documentation is (@see fuse:run/3)
 %% @end
@@ -163,6 +166,8 @@ handle_call({melt, Name}, _From, State) ->
 	end;
 handle_call(sync, _F, State) ->
 	{reply, ok, State};
+handle_call(q_melts, _From, #state { fuses = Fs } = State) ->
+        {reply, [{N, Ms} || #fuse { name = N, melt_history = Ms } <- Fs], State};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
 	

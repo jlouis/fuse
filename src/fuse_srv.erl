@@ -228,22 +228,19 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_
     case length(R1) of
         CurI when CurI =< I ->
             {ok, NewF};
-            _ ->
-              blow(Fuse),
-              TRef = add_reset_timer(Name, Heal),
-              {ok, NewF#fuse { timer_ref = TRef }}
+        _ ->
+            blow(Fuse),
+            TRef = add_reset_timer(Name, Heal),
+            {ok, NewF#fuse { timer_ref = TRef }}
     end.
 
 
 add_restart_([R|Restarts], Now, Period) ->
     case in_period(R, Now, Period) of
-        true ->
-            [R|add_restart_(Restarts, Now, Period)];
-        false ->
-            []
+        true -> [R|add_restart_(Restarts, Now, Period)];
+        false -> []
     end;
-add_restart_([], _, _) ->
-    [].
+add_restart_([], _, _) -> [].
     
 in_period(Time, Now, Period) ->
     case difference(Time, Now) of

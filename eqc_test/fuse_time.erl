@@ -9,6 +9,7 @@
 -module(fuse_time).
 
 -include_lib("eqc/include/eqc.hrl").
+-include_lib("pulse_otp/include/pulse_otp.hrl").
 
 -export([start/0, init/1]).
 -export([timestamp/0,elapse_time/1]).

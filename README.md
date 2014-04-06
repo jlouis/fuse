@@ -141,6 +141,33 @@ I am deliberately keeping them out of the travis build due to the necessity of E
 
 Great care has been taken in order to make sure fuse can be part of the error kernel of a system. The main fuse server is not supposed to crash under any circumstance. The monitoring application may crash since it is only part of the reporting. While important, it is not essential to correct operation.
 
+## Requirements
+
+QuickCheck allows us to test for requirements of a system. We test for
+the following requirements as part of the test suite:
+
+    Group heal:
+    R01 - Heal non-installed fuse (must never be triggered)
+    R02 - Heal installed fuse (only if blown already)
+
+    Group install:
+    R03 - Installation of a fuse with invalid configuation
+    R04 - Installation of a fuse with valid configuration
+
+    Group Reset:
+    R05 - Reset of an uninstalled fuse
+    R06 - Reset of an installed fuse (blown and nonblown)
+
+    Group Melt:
+    R11 - Melting of an installed fuse
+    R12 - Melting of an uninstalled fuse
+
+    Group run/2:
+    R07 - Use of run/2 on an ok fuse
+    R08 - Use of run/2 on a melted fuse
+    R09 - Use of run/2 on an ok fuse which is melted in the process
+    R10 - Use of run/2 on an uninstalled fuse
+
 ## EQC Test harness features:
 
 * Tests the fuse API in all cases with positive testing

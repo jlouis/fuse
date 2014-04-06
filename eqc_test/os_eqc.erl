@@ -7,7 +7,6 @@
 
 -module(os_eqc).
 
-
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 

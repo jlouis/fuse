@@ -1,6 +1,7 @@
 -module(model_time).
 
 -include_lib("eqc/include/eqc.hrl").
+-include_lib("pulse_otp/include/pulse_otp.hrl").
 
 -compile(export_all).
 

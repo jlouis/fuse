@@ -11,10 +11,11 @@
 
 %%% Model state.
 -record(state, {
-	time = {0, 0, 0},  % Current time in the model. We track time to handle melting time points.
-	melts = [], % History of current melts issued to the SUT
-	blown = [], % List of currently blown fuses
-	installed = [] % List of installed fuses, with their configuration.
+          time = {0, 0, 0},  % Current time in the model. We track time to handle melting time points.
+          melts = [], % History of current melts issued to the SUT
+          blown = [], % List of currently blown fuses
+          installed = [], % List of installed fuses, with their configuration.
+          reqs = [] %% Record the requirements we test
 }).
 
 %% API Generators
@@ -109,9 +110,10 @@ fuse_reset_pre(#state { blown = Blown } = S, [Name]) ->
 %% Note: when a fuse heals, the internal state is reset.
 fuse_reset_next(#state { blown = RPs } = S, _V, [Name]) ->
     case lists:member(Name, RPs) of
-        false -> S;
+        false -> req("R01 Heal non-installed fuse", S);
         true ->
-            clear_melts(Name, S#state { blown = lists:delete(Name, RPs) })
+            req(lists:concat(["R02 Heal an installed fuse (blown ", is_blown(Name, S),""]),
+                clear_melts(Name, S#state { blown = lists:delete(Name, RPs) }))
     end.
 
 fuse_reset_post(_S, [_Name], R) ->
@@ -135,13 +137,14 @@ install_args(_S) ->
 install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
 	case valid_opts(Opts) of
 	    false ->
-	        S;
+	        req("R03 Installing an invalid fuse", S);
 	    true ->
 	        {{standard, Count, Period}, _} = Opts,
 	        T = {Name, Count, Period},
-	        clear_melts(Name,
-	          clear_blown(Name,
-	            S#state { installed = lists:keystore(Name, 1, Is, T) }))
+                req(lists:concat(["R04 Installing fuse ", Count, " ", Period, " new:", is_installed(Name, S)]),
+                    clear_melts(Name,
+                      clear_blown(Name,
+                         S#state { installed = lists:keystore(Name, 1, Is, T) })))
 	end.
 
 install_post(_S, [_Name, Opts], R) ->
@@ -170,11 +173,12 @@ reset_post(S, [Name], Ret) ->
 %% Resetting a fuse resets its internal state
 reset_next(S, _V, [Name]) ->
     case is_installed(Name, S) of
-        false -> S;
+        false -> req("R05 Reset non-installed fuse", S);
         true ->
+            req(lists:concat(["R06 Reset an installed fuse (blown ", is_blown(Name, S), ")"]),
         		clear_blown(Name,
         		  clear_melts(Name,
-        		    S))
+        		    S)))
     end.
 
 %%% ask/1 asks about the state of a fuse that exists
@@ -211,12 +215,14 @@ run_args(_S) ->
 run_next(S, _V, [_Name, ok, _, _]) -> S;
 run_next(#state { time = Ts } = S, _V, [Name, melt, _, _]) ->
 	case is_installed(Name, S) of
-		true ->
+            true ->
+                req("R07 Run installed fuse ",
 		    record_melt_history(Name,
 		      expire_melts(period(Name, S),
 		        record_melt(Name, Ts,
-		          S#state {  })));
-		false -> S#state {  }
+		          S#state {  }))));
+            false ->
+                req("R08 Run non-installed fuse ", S)
 	end.
 
 run_post(S, [Name, _Result, Return, _], Ret) ->
@@ -244,12 +250,14 @@ melt_args(_S) ->
 
 melt_next(#state { time = Ts } = S, _V, [Name]) ->
 	case is_installed(Name, S) of
-		true ->
+            true ->
+                req("R09 Melt installed fuse ",
 		    record_melt_history(Name,
 		      expire_melts(period(Name, S),
 		        record_melt(Name, Ts,
-		          S)));
-		false -> S
+		          S))));
+            false ->
+                req("R10 Melt uninstalled fuse", S)
 	end.
 
 melt_post(_S, _, Ret) ->
@@ -262,6 +270,11 @@ weight(_, reset) -> 2;
 weight(_, run) -> 3;
 weight(_, fuse_reset) -> 20;
 weight(_, _) -> 10.
+
+%%% STATISTICS
+%% ---------------------------------------------------------------
+req(Req,S) ->
+  S#state{reqs = lists:usort([Req|S#state.reqs])}.
 
 %%% INVARIANT
 %% ---------------------------------------------------------------
@@ -290,38 +303,49 @@ group(E, Acc, [{X, K} | Next]) -> [{E, Acc} | group(X, [K], Next)].
 
 %% Test the stateful system against a random sequential command sequence.
 prop_model_seq() ->
+    ?SETUP( fun() ->
+                    setup(),
+                    fun() -> ok end
+            end,
     fault_rate(1, 40,
     	?FORALL(St, g_initial_state(),
 	?FORALL(Cmds, commands(?MODULE, St),
 	  begin
-	  	fuse_time:start(),
-	  	cleanup(),
-	  	{H, S, R} = run_commands(?MODULE, Cmds),
-	        pretty_commands(?MODULE, Cmds, {H, S, R},
-	  		aggregate(command_names(Cmds), R == ok))
-	  end))).
+              fuse_time:start(),
+              cleanup(),
+              {H, S, R} = run_commands(?MODULE, Cmds),
+              aggregate(command_names(Cmds),
+                aggregate(S#state.reqs,
+                   pretty_commands(?MODULE, Cmds, {H, S, R}, R == ok)))
+	  end)))).
 
 %% Test the stateful system against a random parallel command sequence with a sequential prefix.
 prop_model_par() ->
+    ?SETUP( fun() ->
+                   setup(),
+                   fun() -> ok end
+           end,
     fault_rate(1, 40,
      ?LET(Shrinking, parameter(shrinking, false), 
      ?FORALL(St, g_initial_state(),
-	?FORALL(ParCmds, parallel_commands(?MODULE, St),
+	?FORALL(Cmds, parallel_commands(?MODULE, St),
 	  ?ALWAYS(if not Shrinking -> 1;
                      Shrinking -> 20
 		  end,
 	  begin
-	  	fuse_time:start(),
-	  	cleanup(),
-	  	{H, S, R} = run_parallel_commands(?MODULE, ParCmds),
-	        pretty_commands(?MODULE, ParCmds, {H, S, R},
-	  		aggregate(command_names(ParCmds), R == ok))
-	  end))))).
+              fuse_time:start(),
+              cleanup(),
+              {H, S, R} = run_parallel_commands(?MODULE, Cmds),
+              aggregate(command_names(Cmds),
+                  pretty_commands(?MODULE, Cmds, {H, S, R}, R == ok))
+	  end)))))).
 
 %% Run a test under PULSE to randomize the process schedule as well.
 x_prop_model_pulse() ->
-  ?SETUP(fun() -> N = erlang:system_flag(schedulers_online, 1),
-         	fun() -> erlang:system_flag(schedulers_online, N) end end,
+   ?SETUP(fun() ->
+                   setup(),
+                   fun() -> ok end
+           end,
   ?FORALL(St, g_initial_state(),
   ?FORALL(Cmds, parallel_commands(?MODULE, St),
   ?PULSE(HSR={_, _, R},
@@ -334,15 +358,17 @@ x_prop_model_pulse() ->
     pretty_commands(?MODULE, Cmds, HSR,
       R == ok)))))).
 
-cleanup() ->
+setup() ->
   error_logger:tty(false),
-  (catch application:stop(fuse)),
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),
   application:set_env(sasl, errlog_type, error),
   application:start(sasl),
-  application:start(folsom),
-  ok = application:start(fuse).
+  application:start(folsom).
+
+cleanup() ->
+    (catch application:stop(fuse)),
+    ok = application:start(fuse).
 
 %%% Helpers
 %%% ---------------------

@@ -212,17 +212,22 @@ run_args(_S) ->
     ?LET({N, Result, Return}, {g_name(), elements([ok, melt]), int()},
         [N, Result, Return, function0({Result, Return})] ).
 
-run_next(S, _V, [_Name, ok, _, _]) -> S;
+run_next(S, _V, [_Name, ok, _, _]) ->
+    req("R07 Run on ok fuse", S);
 run_next(#state { time = Ts } = S, _V, [Name, melt, _, _]) ->
 	case is_installed(Name, S) of
             true ->
-                req("R07 Run installed fuse ",
-		    record_melt_history(Name,
-		      expire_melts(period(Name, S), Name,
-		        record_melt(Name, Ts,
-		          S#state {  }))));
+                case is_blown(Name, S) of
+                    true ->
+                        req("R08 Run (melt) on blown fuse", S);
+                    false ->
+                        req("R09 Run (melt) on installed fuse ",
+                            record_melt_history(Name,
+                              expire_melts(period(Name, S), Name,
+                                record_melt(Name, Ts, S))))
+                end;
             false ->
-                req("R08 Run non-installed fuse ", S)
+                req("R10 Run uninstalled fuse ", S)
 	end.
 
 run_post(S, [Name, _Result, Return, _], Ret) ->
@@ -251,13 +256,13 @@ melt_args(_S) ->
 melt_next(#state { time = Ts } = S, _V, [Name]) ->
 	case is_installed(Name, S) of
             true ->
-                req("R09 Melt installed fuse ",
+                req("R11 Melt installed fuse ",
 		    record_melt_history(Name,
 		      expire_melts(period(Name, S), Name,
 		        record_melt(Name, Ts,
 		          S))));
             false ->
-                req("R10 Melt uninstalled fuse", S)
+                req("R12 Melt uninstalled fuse", S)
 	end.
 
 melt_post(_S, _, Ret) ->

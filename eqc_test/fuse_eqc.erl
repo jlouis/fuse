@@ -112,7 +112,7 @@ fuse_reset_next(#state { blown = RPs } = S, _V, [Name]) ->
     case lists:member(Name, RPs) of
         false -> req("R01 Heal non-installed fuse", S);
         true ->
-            req(lists:concat(["R02 Heal an installed fuse (blown ", is_blown(Name, S),""]),
+            req(lists:concat(["R02 Heal an installed fuse (blown ", is_blown(Name, S),")"]),
                 clear_melts(Name, S#state { blown = lists:delete(Name, RPs) }))
     end.
 
@@ -218,7 +218,7 @@ run_next(#state { time = Ts } = S, _V, [Name, melt, _, _]) ->
             true ->
                 req("R07 Run installed fuse ",
 		    record_melt_history(Name,
-		      expire_melts(period(Name, S),
+		      expire_melts(period(Name, S), Name,
 		        record_melt(Name, Ts,
 		          S#state {  }))));
             false ->
@@ -253,7 +253,7 @@ melt_next(#state { time = Ts } = S, _V, [Name]) ->
             true ->
                 req("R09 Melt installed fuse ",
 		    record_melt_history(Name,
-		      expire_melts(period(Name, S),
+		      expire_melts(period(Name, S), Name,
 		        record_melt(Name, Ts,
 		          S))));
             false ->
@@ -432,18 +432,25 @@ clear_blown(Name, #state { blown = Rs } = S) ->
 clear_melts(Name, #state { melts = Ms } = S) ->
 	S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
 
-expire_melts(Period, #state { time = Now, melts = Ms } = S) ->
-	S#state { melts = [{Name, Ts} || {Name, Ts} <- Ms, in_period(Ts, Now, Period)] }.
+expire_melts(Period, Who, #state { time = Now, melts = Ms } = S) ->
+    Updated =
+        [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
+    S#state { melts = Updated }.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;
 in_period(Ts, Now, Period) when Now >= Ts ->
-	STs = model_time:micros(Ts) div (1000 * 1000),
-	SNow = model_time:micros(Now) div (1000 * 1000),
+    STs = model_time:micros(Ts) div (1000 * 1000),
+    SNow = model_time:micros(Now) div (1000 * 1000),
 	
-	%% Difference in Seconds, by subtraction and then eradication of the microsecond parts.
-	Secs = SNow - STs,
-	Secs =< Period.
+    %% Difference in Seconds, by subtraction
+    case SNow - STs of
+        T when T > Period ->
+            false;
+        _ ->
+            true
+    end.
+    
 
 %% PULSE instrumentation,
 the_prop() -> x_prop_model_pulse().

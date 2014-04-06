@@ -280,23 +280,23 @@ req(Req,S) ->
 %% ---------------------------------------------------------------
 
 %% Check that the system is actually returning the values we want
-%% invariant(#state { melts = Melts }) ->
-%%     SUTMelts = [{N, length(L)} || {N, L} <- fuse_srv:q_melts(), length(L) > 0],
-%%     ModelMelts = compute_melt_times(Melts),
-%%     eq(
-%%     	lists:sort(SUTMelts),
-%%     	lists:sort(ModelMelts)).
+invariant(#state { melts = Melts }) ->
+    SUTMelts = [{N, length(L)} || {N, L} <- fuse_srv:q_melts(), length(L) > 0],
+    ModelMelts = compute_melt_times(Melts),
+    eq(
+    	lists:sort(SUTMelts),
+    	lists:sort(ModelMelts)).
 
-%% compute_melt_times(Ms) ->
-%%     Grouped = group(lists:sort(Ms)),
-%%     [{N, length(Melts)} || {N, Melts} <- Grouped].
+compute_melt_times(Ms) ->
+    Grouped = group(lists:sort(Ms)),
+    [{N, length(Melts)} || {N, Melts} <- Grouped].
 
-%% group([])            -> [];
-%% group([{E, K} | Es]) -> group(E, [K], Es).
+group([])            -> [];
+group([{E, K} | Es]) -> group(E, [K], Es).
 
-%% group(E, Acc, []) -> [{E, Acc}];
-%% group(E, Acc, [{E, K} | Next]) -> group(E, [K | Acc], Next);
-%% group(E, Acc, [{X, K} | Next]) -> [{E, Acc} | group(X, [K], Next)].
+group(E, Acc, []) -> [{E, Acc}];
+group(E, Acc, [{E, K} | Next]) -> group(E, [K | Acc], Next);
+group(E, Acc, [{X, K} | Next]) -> [{E, Acc} | group(X, [K], Next)].
 
 %%% PROPERTIES
 %% ---------------------------------------------------------------

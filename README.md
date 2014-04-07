@@ -4,6 +4,12 @@ This application implements a so-called circuit-breaker for Erlang.
 
 [![Build Status](https://travis-ci.org/jlouis/fuse.png?branch=master)](https://travis-ci.org/jlouis/fuse)
 
+The current code status is that we have extensive test cases and test
+frameworks written around the code, but it has not been used in
+production systems yet. If you use the system in production, I would
+very much like to hear about it. Especially if you encountered any
+problems while doing so.
+
 # Introduction
 
 When we build large systems, one of the problems we face is what happens when we have long dependency chains of applications. We might have a case where applications call like this:
@@ -15,8 +21,13 @@ Now, if we begin having errors in application `B` down the road, the problem is 
 A broken circuit introduces some good characteristics in the system:
 
 * There is no buffer/queue buildup since requests can get passed immediately. No waste of resources is had.
-* returning from a broken circuit has favorable latency close to 0μs. This allows code to try a backup system quickly, or to give negative feedback.
+* Returning from a broken circuit has favorable latency close to 0μs. This allows code to try a backup system quickly, or to give negative feedback.
 * Clients can discriminate a system with slow response time from one that is genuinely broken. For the vast majority of clients, this is beneficial. A front-end can opt to skip displaying of certain elements, should the backend parts be down.
+* Circuits introduce a point where your cascading dependencies can be
+  easily monitored. By moving monitoring and reporting to another
+  subsystem, one achieves decoupling between the system doing
+  operation and the system overseeing operation. This is usually nice
+  from an architectural perspective.
 
 The broken circuit will be retried once in a while. The system will then auto-heal if connectivity comes back for the underlying systems. 
 
@@ -26,7 +37,7 @@ Several companies should be thanked:
 
 * Issuu: for needing this tool in the first place, and lending some time to build it.
 * Erlang Solutions: For lending some development time to the project as well.
-* Quviq: for making Erlang QuickCheck and helping out with model construction.
+* Quviq: for making Erlang QuickCheck and helping with model construction.
 
 ## Contributors:
 

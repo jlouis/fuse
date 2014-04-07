@@ -498,11 +498,15 @@ pulse_instrument() ->
   [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ].
 
 pulse_instrument(File) ->
+    EffectFul = [
+    	{ets, '_', '_'},
+    	{folsom, '_', '_'},
+    	{alarm_handler, '_', '_'}],
     io:format("Compiling: ~p~n", [File]),
     {ok, Mod} = compile:file(File, [{d, 'PULSE', true},
                                     {d, 'EQC_TESTING', true},
                                     {parse_transform, pulse_instrument},
-                                    {pulse_side_effect, [{ets, '_', '_'}]}]),
+                                    {pulse_side_effect, EffectFul}]),
   code:purge(Mod),
   code:load_file(Mod),
   Mod.

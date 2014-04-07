@@ -64,12 +64,13 @@ g_refresh() ->
 g_options() ->
 	{g_strategy(), g_refresh()}.
 
-%% g_initial_state/0 generates the initial system state
-g_initial_state() -> #state {}.
 
 %% g_time_inc/0 generates a time increment.
 g_time_inc() ->
 	choose(1, 1000*1000).
+
+%% initial_state/0 generates the initial system state
+initial_state() -> #state{}.
 
 %% elapse_time
 %% ---------------------------------------------------------------
@@ -313,8 +314,7 @@ prop_model_seq() ->
                     fun() -> ok end
             end,
     fault_rate(1, 40,
-    	?FORALL(St, g_initial_state(),
-	?FORALL(Cmds, commands(?MODULE, St),
+	?FORALL(Cmds, commands(?MODULE),
 	  begin
               fuse_time:start(),
               cleanup(),
@@ -322,7 +322,7 @@ prop_model_seq() ->
               aggregate(command_names(Cmds),
                 aggregate(S#state.reqs,
                    pretty_commands(?MODULE, Cmds, {H, S, R}, R == ok)))
-	  end)))).
+	  end))).
 
 %% Test the stateful system against a random parallel command sequence with a sequential prefix.
 prop_model_par() ->
@@ -332,8 +332,7 @@ prop_model_par() ->
            end,
     fault_rate(1, 40,
      ?LET(Shrinking, parameter(shrinking, false), 
-     ?FORALL(St, g_initial_state(),
-	?FORALL(Cmds, parallel_commands(?MODULE, St),
+	?FORALL(Cmds, parallel_commands(?MODULE),
 	  ?ALWAYS(if not Shrinking -> 1;
                      Shrinking -> 20
 		  end,
@@ -343,7 +342,7 @@ prop_model_par() ->
               {H, S, R} = run_parallel_commands(?MODULE, Cmds),
               aggregate(command_names(Cmds),
                   pretty_commands(?MODULE, Cmds, {H, S, R}, R == ok))
-	  end)))))).
+	  end))))).
 
 %% Run a test under PULSE to randomize the process schedule as well.
 x_prop_model_pulse() ->
@@ -351,8 +350,7 @@ x_prop_model_pulse() ->
                    setup(),
                    fun() -> ok end
            end,
-  ?FORALL(St, g_initial_state(),
-  ?FORALL(Cmds, parallel_commands(?MODULE, St),
+  ?FORALL(Cmds, parallel_commands(?MODULE),
   ?PULSE(HSR={_, _, R},
     begin
       fuse_time:start(),
@@ -361,7 +359,7 @@ x_prop_model_pulse() ->
     end,
     aggregate(command_names(Cmds),
     pretty_commands(?MODULE, Cmds, HSR,
-      R == ok)))))).
+      R == ok))))).
 
 setup() ->
   error_logger:tty(false),
@@ -379,7 +377,7 @@ cleanup() ->
 %%% ---------------------
 
 sample() ->
-	eqc_gen:sample(commands(?MODULE, g_initial_state())).
+	eqc_gen:sample(commands(?MODULE)).
 
 %%% INTERNALS
 %%% ---------------------

@@ -53,7 +53,7 @@ g_strategy() ->
 			{1, {standard, int(), g_neg_int()}},
 			{1, {standard, int(), int()}}
 		])},
-		{standard, choose(1, 3), choose(1, 3)}
+		{standard, choose(1, 2), choose(1, 3)}
 	).
 
 %% g_refresh()/0 generates a refresh setting.
@@ -271,11 +271,17 @@ melt_post(_S, _, Ret) ->
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
-weight(_, install) -> 2;
-weight(_, reset) -> 2;
-weight(_, run) -> 3;
-weight(_, fuse_reset) -> 20;
-weight(_, _) -> 10.
+weight(#state { melts = [] }, elapse_time) -> 10;
+weight(#state { melts = Ms }, elapse_time) -> length(Ms) * 20;
+weight(_, install) -> 10;
+weight(_, reset) -> 1;
+weight(_, run) -> 5;
+weight(#state { installed = [] }, melt) -> 1;
+weight(#state { installed = Is }, melt) -> length(Is) * 5;
+weight(_, fuse_reset) -> 100;
+weight(#state { installed = [] }, ask) -> 1;
+weight(_, ask) -> 7;
+weight(_, _) -> 100.
 
 %%% STATISTICS
 %% ---------------------------------------------------------------
@@ -314,7 +320,7 @@ prop_model_seq() ->
                     fun() -> ok end
             end,
     fault_rate(1, 40,
-	?FORALL(Cmds, commands(?MODULE),
+	?FORALL(Cmds, more_commands(4, commands(?MODULE)),
 	  begin
               fuse_time:start(),
               cleanup(),
@@ -332,7 +338,7 @@ prop_model_par() ->
            end,
     fault_rate(1, 40,
      ?LET(Shrinking, parameter(shrinking, false), 
-	?FORALL(Cmds, parallel_commands(?MODULE),
+	?FORALL(Cmds, more_commands(4, parallel_commands(?MODULE)),
 	  ?ALWAYS(if not Shrinking -> 1;
                      Shrinking -> 20
 		  end,

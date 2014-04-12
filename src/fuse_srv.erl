@@ -7,15 +7,6 @@
 -include_lib("pulse_otp/include/pulse_otp.hrl").
 -endif.
 
--ifdef(EQC_TESTING).
--define(OS_TIMESTAMP, fuse_time:timestamp()).
--define(SEND_AFTER, fuse_time:send_after).
--define(CANCEL_TIMER, fuse_time:cancel_timer).
--else.
--define(OS_TIMESTAMP, os:timestamp()).
--define(SEND_AFTER, erlang:send_after).
--define(CANCEL_TIMER, erlang:cancel_timer).
--endif.
 
 %% Lifetime API
 -export([start_link/0]).
@@ -46,6 +37,15 @@
 	timer_ref = none
 }).
 
+-ifdef(EQC_TESTING).
+-define(OS_TIMESTAMP, fuse_time:timestamp()).
+-define(SEND_AFTER, fuse_time:send_after).
+-define(CANCEL_TIMER, fuse_time:cancel_timer).
+-else.
+-define(OS_TIMESTAMP, os:timestamp()).
+-define(SEND_AFTER, erlang:send_after).
+-define(CANCEL_TIMER, erlang:cancel_timer).
+-endif.
 
 %% ------
 %% @doc Start up the manager server for the fuse system
@@ -77,7 +77,7 @@ ask(Name, [sync]) ->
     gen_server:call(?MODULE, {ask, Name}, 5000);
 ask(Name, []) ->
     try ets:lookup_element(?TAB, Name, 2) of
-        ok -> 
+        ok ->
           _ = folsom_metrics:notify({metric(Name, <<"ok">>), 1}),
           ok;
         blown ->

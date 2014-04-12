@@ -184,8 +184,27 @@ reset_next(S, _V, [Name]) ->
 
 %%% ask/1 asks about the state of a fuse that exists
 %% ---------------------------------------------------------------
+%% Split into two variants
+ask_installed(Name) ->
+	fuse:ask(Name).
+	
+ask_installed_pre(S) -> has_fuses_installed(S).
+
+ask_installed_args(_S) -> [g_name()].
+
+ask_installed_pre(S, [Name]) -> is_installed(Name, S).
+
+ask_installed_next(S, _V, [_Name]) -> req("R15 Ask installed fuse", S).
+
+ask_installed_post(S, [Name], Ret) ->
+    V = case is_blown(Name, S) of
+    	true -> blown;
+    	false -> ok
+    end,
+    eq(Ret, V).
+
 ask(Name) ->
-	fuse:ask(Name, [sync]).
+	fuse:ask(Name).
 	
 ask_pre(S) ->
 	has_fuses_installed(S).
@@ -193,6 +212,12 @@ ask_pre(S) ->
 ask_args(_S) ->
 	[g_name()].
 	
+ask_next(S, _V, [Name]) ->
+	case is_installed(Name, S) of
+	    true -> req("R15 Ask installed fuse", S);
+	    false -> req("R16 Ask uninstalled fuse", S)
+	end.
+
 ask_post(S, [Name], Ret) ->
 	case is_installed(Name, S) of
 	    true ->
@@ -204,7 +229,7 @@ ask_post(S, [Name], Ret) ->
 %%% run/1 runs a function (thunk) on the circuit breaker
 %% ---------------------------------------------------------------
 run(Name, _Result, _Return, Fun) ->
-	fuse:run(Name, Fun, [sync]).
+	fuse:run(Name, Fun).
 	
 run_pre(S) ->
 	has_fuses_installed(S).
@@ -293,15 +318,15 @@ melt_post(_S, _, Ret) ->
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
-weight(#state { melts = Ms }, elapse_time) -> length(Ms) * 10 + 5;
-weight(_, install) -> 3;
+weight(_, elapse_time) -> 5;
+weight(_, install) -> 1;
 weight(_, reset) -> 2;
 weight(_, run) -> 5;
 weight(_, melt) -> 1;
 weight(_, melt_installed) -> 40;
 weight(_, fuse_reset) -> 100;
-weight(#state { installed = [] }, ask) -> 1;
-weight(_, ask) -> 7.
+weight(_, ask) -> 1;
+weight(_, ask_installed) -> 30.
 
 %%% STATISTICS
 %% ---------------------------------------------------------------
@@ -387,6 +412,11 @@ x_prop_model_pulse() ->
     pretty_commands(?MODULE, Cmds, HSR,
       R == ok))))).
 
+-ifdef(WITH_PULSE).
+setup() ->
+  error_logger:tty(false),
+  ok.
+-else.
 setup() ->
   error_logger:tty(false),
   application:load(sasl),
@@ -394,6 +424,7 @@ setup() ->
   application:set_env(sasl, errlog_type, error),
   application:start(sasl),
   application:start(folsom).
+-endif.
 
 cleanup() ->
     (catch application:stop(fuse)),
@@ -484,25 +515,6 @@ in_period(Ts, Now, Period) when Now >= Ts ->
         _ ->
             true
     end.
-    
-
-%% PULSE instrumentation,
-the_prop() -> x_prop_model_pulse().
-
-%% test/1 is a helper which makes it easy to PULSE test the code
-test({N, h})   -> test({N * 60, min});
-test({N, min}) -> test({N * 60, sec});
-test({N, s})   -> test({N, sec});
-test({N, sec}) ->
-  quickcheck(eqc:testing_time(N, the_prop()));
-test(N) when is_integer(N) ->
-  quickcheck(numtests(N, the_prop())).
-
-test() -> test(100).
-
-recheck() -> eqc:recheck(the_prop()).
-check()   -> eqc:check(the_prop()).
-check(CE) -> eqc:check(the_prop(), CE).
 
 t(seq, {T, Unit}) ->
     eqc:testing_time(eval_time(T, Unit), prop_model_seq());
@@ -511,9 +523,12 @@ t(seq, N) when is_integer(N) ->
 t(par, {T, Unit}) ->
     eqc:testing_time(eval_time(T, Unit), prop_model_par());
 t(par, N) when is_integer(N) ->
-    eqc:numtests(N, prop_model_par()).
+    eqc:numtests(N, prop_model_par());
+t(pulse, {T, Unit}) ->
+    eqc:testing_time(eval_time(T, Unit), x_prop_model_pulse());
+t(pulse, N) when is_integer(N) ->
+    eqc:numtests(N, x_prop_model_pulse()).
     
-
 
 eval_time(N, h)   -> eval_time(N*60, min);
 eval_time(N, min) -> eval_time(N*60, sec);
@@ -526,7 +541,13 @@ rv(What, T) ->
     eqc:quickcheck(eqc_statem:show_states(t(What, T))).
 
 pulse_instrument() ->
-  [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ].
+  [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ],
+  application:load(sasl),
+  application:set_env(sasl, sasl_error_logger, false),
+  application:set_env(sasl, errlog_type, error),
+  application:start(sasl),
+  application:start(folsom),
+  ok.
 
 pulse_instrument(File) ->
     EffectFul = [
@@ -534,7 +555,7 @@ pulse_instrument(File) ->
     	{folsom, '_', '_'},
     	{alarm_handler, '_', '_'}],
     io:format("Compiling: ~p~n", [File]),
-    {ok, Mod} = compile:file(File, [{d, 'PULSE', true},
+    {ok, Mod} = compile:file(File, [{d, 'PULSE', true}, {d, 'WITH_PULSE', true},
                                     {d, 'EQC_TESTING', true},
                                     {parse_transform, pulse_instrument},
                                     {pulse_side_effect, EffectFul}]),

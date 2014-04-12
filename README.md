@@ -74,17 +74,12 @@ So re-creation of a fuse overwrites the existing fuse.
 
 Once you have installed a fuse, you can use it in one of two ways:
 
-	case fuse:ask(database_fuse, [sync]) of
-		ok -> …;
-		blown -> …
-	end,
-        
 	case fuse:ask(database_fuse) of
 		ok -> …;
 		blown -> …
 	end,
 
-This queries the fuse for its state and lets you handle the case where it is currently blown. The second variant does the same call, but does so in a *dirty* way. This means while being faster, you may see an an `ok` answer from a fuse that is in the process of being blown. In most cases this race condition is benign to real software.
+This queries the fuse for its state and lets you handle the case where it is currently blown.
 
 Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
 
@@ -106,17 +101,12 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 	  when Result :: term().
 
 	%% To use this function:
-	case fuse:run(Name, fun exec/0, [sync]) of
-		{ok, Result} -> …;
-		blown -> …
-	end,
-
 	case fuse:run(Name, fun exec/0) of
 		{ok, Result} -> …;
 		blown -> …
 	end,
 
-this function will do the asking and melting itself based on the output of the underlying function. The `sync` variant does so synchronously, while the simpler variant is subject to (benign) races like in the above example. The `run/2,3` invocation is often easier to handle in programs.
+this function will do the asking and melting itself based on the output of the underlying function. The `run/2` invocation is often easier to handle in programs.
 
 ## Monitoring fuse state
 
@@ -154,9 +144,7 @@ Great care has been taken in order to make sure fuse can be part of the error ke
 
 ## Requirements
 
-QuickCheck allows us to test for requirements of a system. We test for
-the following requirements as part of the test suite. We have verified that all of these requirements are being hit by
-typical EQC runs:
+QuickCheck allows us to test for requirements of a system. This essentially tests for any interleaving of calls toward the Fuse subsystem, so we weed out any error. We test for the following requirements as part of the test suite. We have verified that all of these requirements are being hit by typical EQC runs:
 
     Group heal:
     R01 - Heal non-installed fuse (must never be triggered)
@@ -181,8 +169,13 @@ typical EQC runs:
     R10 - Use of run/2 on an uninstalled fuse
 
     Group blow:
-    R13 Blowing a fuse
-    R14 Removing melts from the window by expiry
+    R13 - Blowing a fuse
+    R14 - Removing melts from the window by expiry
+
+    Group ask/1:
+    R15 - Ask on an installed fuse
+    R16 - Ask on an uninstalled fuse
+
 
 ## EQC Test harness features:
 
@@ -190,7 +183,7 @@ typical EQC runs:
 * Uses negative testing to make sure the `install/2` command rejects wrong options correctly.
 * Uses negative testing to make sure return values are correct for every other command
 * Uses sequential testing to make sure command invocation is sane.
-* Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time. The assumption is all calls are made with the synchronous API. For most practical uses, one can skip synchronous `ask/1` calls and use the async variants.
+* Uses parallel testing to make sure there are no race conditions, even when many clients call into the system at the same time.
 * Uses EQC PULSE to randomize the schedule of the processes we run to make sure they are correct.
 * Models time in EQC and controls time advancement to test for situations where timing is a problem in the system under test.
 * Uses EQC Component to monitor correct handling of alarms triggering and clearing in the Erlang system with correct hysteresis.
@@ -218,10 +211,10 @@ Development guided by properties leads to a code base which is considerably smal
 * Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, not_found}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.
 * More work on the model made it clear the fuse intensity of '0' requires much special handling in the code base and model to handle correctly. It was decided to reject an intensity of 0 altogether and shave off much complexity in the implementation and in the model.
 * EQC and careful consideration came up with the idea to separate the alarm handling code from the fuse handling code in the system, to protect a faulty alarm handler from taking down the fuse system.
-* EQC, using PULSE to test, figured out we need a way to synchronize `ask/1`. The problem is that this runs outside the `fuse_srv` which leads the parallel race conditions. This was mitigated by adding a variant, `ask/2` which is sync-safe and poses no race conditions.
 * EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
 * EQC, and helpful hints by Thomas Arts, made it evident that the method used to draw timestamps was incorrect. A new model, where timestamps are generated inside the fuse system was much easier to test and verify.
 * EQC made it clear exactly how time is used in the system.
+* At some point, we had a variant of the `ask/1` call which was synchronous. The remarkable observation is that we can make this asynchronous and it is *still* correct with respect to the model. The reason is that the observation on the ETS table is atomic and it is doesn't matter if we observe it from the inside or the outside of the `fuse_srv` process.
 
 The monitor model found the following:
 

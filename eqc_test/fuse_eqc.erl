@@ -67,7 +67,7 @@ g_options() ->
 
 %% g_time_inc/0 generates a time increment.
 g_time_inc() ->
-	choose(1, 1000*1000).
+	choose(1, 4000*1000).
 
 %% initial_state/0 generates the initial system state
 initial_state() -> #state{}.

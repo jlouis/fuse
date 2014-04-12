@@ -245,6 +245,28 @@ run_post(S, [Name, _Result, Return, _], Ret) ->
 
 %%% melt/1 melts the fuse a little bit
 %% ---------------------------------------------------------------
+%% There are two ways of melting. One way is guaranteed to pick an already installed
+%% fuse while the other picks fuses arbitrarily. This enables to to easily prioritise the
+%% fuses which are installed, since we assume the interesting aspects affects these.
+melt_installed(Name) ->
+	fuse:melt(Name).
+	
+melt_installed_pre(S) -> has_fuses_installed(S).
+
+melt_installed_args(_S) -> [g_name()].
+
+melt_installed_pre(S, [Name]) ->
+	is_installed(Name, S).
+	
+melt_installed_next(#state { time = Ts } = S, _V, [Name]) ->
+	req("R11 Melt installed fuse ",
+	    record_melt_history(Name,
+	        expire_melts(period(Name, S), Name,
+	            record_melt(Name, Ts, S)))).
+
+melt_installed_post(_S, _, Ret) ->
+	eq(Ret, ok).
+
 melt(Name) ->
 	fuse:melt(Name).
 
@@ -271,17 +293,15 @@ melt_post(_S, _, Ret) ->
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
-weight(#state { melts = [] }, elapse_time) -> 10;
-weight(#state { melts = Ms }, elapse_time) -> length(Ms) * 20;
-weight(_, install) -> 10;
-weight(_, reset) -> 1;
+weight(#state { melts = Ms }, elapse_time) -> length(Ms) * 10 + 5;
+weight(_, install) -> 3;
+weight(_, reset) -> 2;
 weight(_, run) -> 5;
-weight(#state { installed = [] }, melt) -> 1;
-weight(#state { installed = Is }, melt) -> length(Is) * 5;
+weight(_, melt) -> 1;
+weight(_, melt_installed) -> 40;
 weight(_, fuse_reset) -> 100;
 weight(#state { installed = [] }, ask) -> 1;
-weight(_, ask) -> 7;
-weight(_, _) -> 100.
+weight(_, ask) -> 7.
 
 %%% STATISTICS
 %% ---------------------------------------------------------------
@@ -320,7 +340,7 @@ prop_model_seq() ->
                     fun() -> ok end
             end,
     fault_rate(1, 40,
-	?FORALL(Cmds, more_commands(4, commands(?MODULE)),
+	?FORALL(Cmds, more_commands(2, commands(?MODULE)),
 	  begin
               fuse_time:start(),
               cleanup(),
@@ -338,7 +358,7 @@ prop_model_par() ->
            end,
     fault_rate(1, 40,
      ?LET(Shrinking, parameter(shrinking, false), 
-	?FORALL(Cmds, more_commands(4, parallel_commands(?MODULE)),
+	?FORALL(Cmds, more_commands(2, parallel_commands(?MODULE)),
 	  ?ALWAYS(if not Shrinking -> 1;
                      Shrinking -> 20
 		  end,
@@ -431,7 +451,8 @@ record_melt_history(Name, #state { blown = OldRPs } = S) ->
 	        case lists:member(Name, OldRPs) of
 	            true -> S; %% Can have at most 1 RP for a name
 	            false ->
-	            	S#state { blown = OldRPs ++ [Name] }
+	            	req("R13 Blowing fuse",
+	            	  S#state { blown = OldRPs ++ [Name] })
 	        	end
 	end.
 
@@ -444,7 +465,11 @@ clear_melts(Name, #state { melts = Ms } = S) ->
 expire_melts(Period, Who, #state { time = Now, melts = Ms } = S) ->
     Updated =
         [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
-    S#state { melts = Updated }.
+    NewState = S#state { melts = Updated },
+    case Ms /= Updated of
+        true -> req("R14 Expiring melts", NewState);
+        false -> NewState
+    end.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;

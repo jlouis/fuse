@@ -155,7 +155,8 @@ Great care has been taken in order to make sure fuse can be part of the error ke
 ## Requirements
 
 QuickCheck allows us to test for requirements of a system. We test for
-the following requirements as part of the test suite:
+the following requirements as part of the test suite. We have verified that all of these requirements are being hit by
+typical EQC runs:
 
     Group heal:
     R01 - Heal non-installed fuse (must never be triggered)
@@ -178,6 +179,10 @@ the following requirements as part of the test suite:
     R08 - Use of run/2 on a melted fuse
     R09 - Use of run/2 on an ok fuse which is melted in the process
     R10 - Use of run/2 on an uninstalled fuse
+
+    Group blow:
+    R13 Blowing a fuse
+    R14 Removing melts from the window by expiry
 
 ## EQC Test harness features:
 

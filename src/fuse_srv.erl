@@ -13,11 +13,11 @@
 
 %% Operational API
 -export([
-    ask/1, ask/2,
+    ask/1,
     install/2,
     melt/1,
     reset/1,
-    run/3]).
+    run/2]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
@@ -65,17 +65,9 @@ install(Name, Opts) ->
 	gen_server:call(?MODULE, {install, Fuse}).
 
 %% @doc ask/1 asks about the current given fuse state
-%% The documentation is (@see fuse:ask/2)
+%% The documentation is (@see fuse:ask/1)
 %% @end
--spec ask(atom()) -> ok | blown | {error, not_found}.
-ask(Name) -> ask(Name, []).
-
-%% @doc ask/1 asks about the current given fuse state
-%% The documentation is (@see fuse:ask/2)
-%% @end
-ask(Name, [sync]) ->
-    gen_server:call(?MODULE, {ask, Name}, 5000);
-ask(Name, []) ->
+ask(Name) ->
     try ets:lookup_element(?TAB, Name, 2) of
         ok ->
           _ = folsom_metrics:notify({metric(Name, <<"ok">>), 1}),
@@ -89,7 +81,7 @@ ask(Name, []) ->
     end.
 
 %% @doc reset/1 resets the fuse
-%% The documentation is (@see fuse:ask/2)
+%% The documentation is (@see fuse:reset/1)
 %% @end
 -spec reset(atom()) -> ok | {error, not_found}.
 reset(Name) ->
@@ -111,16 +103,16 @@ sync() ->
 q_melts() ->
     gen_server:call(?MODULE, q_melts).
 
-%% run/3 runs a thunk under a given fuse
-%% @doc Documentation is (@see fuse:run/3)
+%% run/2 runs a thunk under a given fuse
+%% @doc Documentation is (@see fuse:run/2)
 %% @end
 %% @private
--spec run(Name, fun(() -> {ok, Result} | {melt, Result}), [] | [sync] ) -> {ok, Result} | blown | {error, not_found}
+-spec run(Name, fun(() -> {ok, Result} | {melt, Result})) -> {ok, Result} | blown | {error, not_found}
   when
     Name :: atom(),
     Result :: any().
-run(Name, Func, Opts) ->
-    case ask(Name, Opts) of
+run(Name, Func) ->
+    case ask(Name) of
         blown -> blown;
         ok ->
           case Func() of
@@ -150,8 +142,6 @@ handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs 
                 ok
         end,
         {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
-handle_call({ask, Name}, _From, State) ->
-        {reply, ask(Name, []), State};
 handle_call({reset, Name}, _From, State) ->
 	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};

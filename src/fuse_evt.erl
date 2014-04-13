@@ -24,7 +24,7 @@ start_link() ->
     gen_event:start_link({local, ?SERVER}).
 
 %% @doc add_handler/2 adds a new event handler
-%% <p>The documentation is (@see gen_event) specific. So use that in
+%% <p>The documentation is @see //stdlib/gen_event. specific. So use that in
 %% order to understand the interface here.</p>
 %% @end
 -spec add_handler(atom() | pid(), [term()]) -> ok.
@@ -32,7 +32,7 @@ add_handler(Handler, Args) ->
     gen_event:add_handler(?SERVER, Handler, Args).
 
 %% @doc delete_handler/2 adds a new event handler
-%% <p>The documentation is (@see gen_event) specific. So use that in
+%% <p>The documentation is @see //stdlib/gen_event. specific. So use that in
 %% order to understand the interface here.</p>
 %% @end
 -spec delete_handler(atom() | pid(), [term()]) -> ok.

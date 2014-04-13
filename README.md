@@ -119,6 +119,12 @@ A fuse named `foo` reports to `folsom` with the following stats:
 
 Furthermore, fuses raises alarms when they are blown. They raise an alarm under the same name as the fuse itself. To clear the alarm, the system uses hysteresis. It has to see 3 consecutive `ok` states on a fuse before clearing the alarm. This is to avoid alarm states from flapping excessively.
 
+# Fuse events
+
+The *fuse* system contains an event handler, `fuse_evt` which can be used to listen on events and react when events trigger in the fuse subsystem. It will send events which are given by the following dialyzer specification `{atom(), blown, ok}`. Where the `atom()` is the name of the installed fuse.
+
+The intended use is to evict waiters from queues in a system. Suppose you are queueing workers up for answers, blocking the workers in the process. When the workers were queued, the fuse was not blown, but now it suddenly broke. You can then install an event handler which pushes a message to the queueing process and tells it the fuse is broken. It can then react by evicting all the entries in queue as if the fuse was broken.
+
 # Tests
 
 Fuse is written with two kinds of tests. First of all, it uses a set of Common Test test cases which runs the basic functionality of the system. Furthermore, fuse is written with Erlang QuickCheck test cases. EQC tests are written before the corresponding code is written, and as such, this is "Property Driven Development".

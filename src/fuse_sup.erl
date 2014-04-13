@@ -23,4 +23,7 @@ start_link() ->
 %% ------
 %% @private
 init([]) ->
-	{ok, { {rest_for_one, 5, 3600}, [?CHILD(fuse_srv, []), ?CHILD(fuse_mon, [])]}}.
+    {ok, { {rest_for_one, 5, 3600},
+           [?CHILD(fuse_srv, []),
+            ?CHILD(fuse_evt, []),
+            ?CHILD(fuse_mon, [])]}}.

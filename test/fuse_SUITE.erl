@@ -3,6 +3,7 @@
 
 -export([all/0]).
 -export([groups/0]).
+-export([suite/0]).
 -export([init_per_suite/1]).
 -export([end_per_suite/1]).
 -export([init_per_group/2]).
@@ -24,12 +25,23 @@ all() ->
 groups() ->
 	[].
 	
+suite() ->
+	[{timetrap, {minutes, 2}}].
+
 init_per_suite(Config) ->
-	application:start(fuse),
+	application:load(sasl),
+	application:set_env(sasl, sasl_error_logger, false),
+	application:set_env(sasl, errlog_type, error),
+	error_logger:tty(false),
+	ok = application:start(sasl),
+	ok = application:start(folsom),
+	ok = application:start(fuse),
 	Config.
 	
-end_per_suite(_Config) ->
+end_per_suite(_Config) ->	
 	application:stop(fuse),
+	application:stop(folsom),
+	application:stop(sasl),
 	ok.
 	
 init_per_group(_Group, Config) ->
@@ -37,33 +49,57 @@ init_per_group(_Group, Config) ->
 	
 end_per_group(_Group, _Config) ->
 	ok.
-	
+
 %% Tests.
 
 -define(FUSE_SIMPLE, simple_fuse).
 simple_test(_Config) ->
+	ct:log("Install a new alarm handler to check alarms"),
+	ok = gen_event:swap_handler(alarm_handler, {alarm_handler, swap}, {my_ah, [self()]}),
+
+	ct:log("install a new event handler"),
+	ok = fuse_evt:add_handler(my_eh, [self()]),
+
 	ct:log("Set up a new fuse, melt it and then verify it resets correctly"),
-	ok = fuse:install(?FUSE_SIMPLE, {{standard, 2, 60}, {reset, 500}}),
-	ok = fuse:ask(?FUSE_SIMPLE),
+	ok = fuse:install(?FUSE_SIMPLE, {{standard, 2, 60}, {reset, 60*1000}}),
+	ok = fuse:ask(?FUSE_SIMPLE, sync),
 	ok = fuse:melt(?FUSE_SIMPLE),
-	ok = fuse:ask(?FUSE_SIMPLE),
+	ok = fuse:ask(?FUSE_SIMPLE, sync),
+	{ok, b} = fuse:run(?FUSE_SIMPLE, fun() -> {melt, b} end, sync),
+	{ok, a} = fuse:run(?FUSE_SIMPLE, fun() -> {ok, a} end, sync),
 	ok = fuse:melt(?FUSE_SIMPLE),
-	ok = fuse:ask(?FUSE_SIMPLE),
-	ok = fuse:melt(?FUSE_SIMPLE),
-	blown = fuse:ask(?FUSE_SIMPLE),
+	blown = fuse:ask(?FUSE_SIMPLE, sync),
+	receive
+		{?FUSE_SIMPLE, blown} -> ok
+	after 1000 ->
+			ct:fail(timeout_eh)
+	end,
+	receive
+		{set_alarm, {?FUSE_SIMPLE, fuse_blown}} -> ok
+	after 61 * 1000 ->
+			ct:fail(timeout_ah)
+	end,
 	ct:sleep(600),
-	ok = fuse:ask(?FUSE_SIMPLE),
+	ok = fuse:ask(?FUSE_SIMPLE, sync),
+	receive
+		{?FUSE_SIMPLE, ok} ->
+			ok
+	after 1000 ->
+		ct:fail(timeout_eh_2)
+	end,
+	ct:log("Removing the handler again"),
+	ok = fuse_evt:delete_handler(my_eh, []),
 	ok.
 
 -define(FUSE_RESET, reset_fuse).
 reset_test(_Config) ->
 	ct:log("Installing a fuse, then resetting it should clear out timers"),
-	ok = fuse:install(?FUSE_RESET, {{standard, 2, 60}, {reset, 500}}),
-	ok = fuse:ask(?FUSE_RESET),
+	ok = fuse:install(?FUSE_RESET, {{standard, 2, 60}, {reset, 5000}}),
+	ok = fuse:ask(?FUSE_RESET, sync),
 	ok = fuse:melt(?FUSE_RESET),
 	ok = fuse:melt(?FUSE_RESET),
 	ok = fuse:melt(?FUSE_RESET),
-	blown = fuse:ask(?FUSE_RESET),
+	blown = fuse:ask(?FUSE_RESET, sync),
 	ok = fuse:reset(?FUSE_RESET),
-	ok = fuse:ask(?FUSE_RESET),
+	ok = fuse:ask(?FUSE_RESET, sync),
 	ok.

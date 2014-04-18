@@ -7,17 +7,20 @@
 -endif.
 
 -export([
-	ask/1,
+	ask/2,
 	install/2,
 	melt/1,
 	reset/1,
-	run/2
+	run/3
 ]).
 
+-type fuse_context() :: sync | async_dirty.
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
 -type fuse_refresh() :: {reset, pos_integer()}.
 -type fuse_options() ::
 	{fuse_strategy(), fuse_refresh()}.
+
+-export_type([fuse_context/0, fuse_options/0]).
 
 %% @doc install/2 adds a new fuse to the running system.
 %% A call `install(N, Os)' will add a new fuse under the name `N' with options given by `Os'. Note that the options must match
@@ -35,20 +38,20 @@ install(Name, Options) ->
 %% @doc run/2 runs a thunk under a given fuse
 %% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'
 %% @end
--spec run(Name, fun (() -> {ok, Result} | {melt, Result}) ) -> {ok, Result} | blown | {error, not_found}
+-spec run(Name, fun (() -> {ok, Result} | {melt, Result}), fuse_context() ) -> {ok, Result} | blown | {error, not_found}
     when
       Name :: atom(),
       Result :: any().
-run(Name, Func) -> fuse_srv:run(Name, Func).
+run(Name, Func, Context) -> fuse_srv:run(Name, Func, Context).
 
 
 %% @doc ask/1 queries the state of a fuse
 %% Given `ask(N)' we ask the fuse state for the name `N'. Returns the fuse state, either `ok' or `blown'.
 %% If there is no such fuse, returns `{error, not_found}'
 %% @end
--spec ask(Name) -> ok | blown | {error, not_found}
+-spec ask(Name, fuse_context()) -> ok | blown | {error, not_found}
   when Name :: atom().
-ask(Name) -> fuse_srv:ask(Name).
+ask(Name, Context) -> fuse_srv:ask(Name, Context).
 
 %% @doc reset/1 resets a fuse
 %% Given `reset(N)' this resets the fuse under the name `N'. The fuse will be unbroken with no melts.

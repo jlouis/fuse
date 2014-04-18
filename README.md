@@ -10,6 +10,14 @@ production systems yet. If you use the system in production, I would
 very much like to hear about it. Especially if you encountered any
 problems while doing so.
 
+# Changelog
+
+We use semantic versioning:
+
+### 1.0.0
+
+Initial Release.
+
 # Introduction
 
 When we build large systems, one of the problems we face is what happens when we have long dependency chains of applications. We might have a case where applications call like this:
@@ -46,6 +54,10 @@ List of people who have made contributions to the project of substantial size:
 * Jesper Louis Andersen
 * Thomas Arts
 
+# Documentation
+
+Read the tutorial in the next section. For a command referece, there is full EDoc documentation via `make docs`. Note that great care has been taken to produce precise documentation of the stable API fragment of the tool.
+
 # Tutorial
 
 To use fuse, you must first start the fuse application:
@@ -72,14 +84,18 @@ Fuses are name-created idempotently, so your application can recreate a fuse if 
 
 So re-creation of a fuse overwrites the existing fuse.
 
-Once you have installed a fuse, you can use it in one of two ways:
+Once you have installed a fuse, you can ask about its state:
 
-	case fuse:ask(database_fuse) of
+	Context = sync,
+	case fuse:ask(database_fuse, Context) of
 		ok -> …;
 		blown -> …
 	end,
 
-This queries the fuse for its state and lets you handle the case where it is currently blown.
+This queries the fuse for its state and lets you handle the case where it is currently blown. The `Context` specifies the context under which the fuses is running (like in mnesia). There are currently two available contexts:
+
+* `sync` - call the fuse synchronously. This is the safe way where each call is factored through the fuse server. It has no known race conditions.
+* `async_dirty` - A fast call path, which circumvents the single fuse_srv process. It is much faster, but has been known to provide rare races in which parallel processes might observe the wrong values. It *is* eventually consistent though.
 
 Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
 
@@ -101,12 +117,13 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 	  when Result :: term().
 
 	%% To use this function:
-	case fuse:run(Name, fun exec/0) of
+	Context = sync,
+	case fuse:run(Name, fun exec/0, Context) of
 		{ok, Result} -> …;
 		blown -> …
 	end,
 
-this function will do the asking and melting itself based on the output of the underlying function. The `run/2` invocation is often easier to handle in programs.
+this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs.
 
 ## Monitoring fuse state
 
@@ -220,7 +237,7 @@ Development guided by properties leads to a code base which is considerably smal
 * EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
 * EQC, and helpful hints by Thomas Arts, made it evident that the method used to draw timestamps was incorrect. A new model, where timestamps are generated inside the fuse system was much easier to test and verify.
 * EQC made it clear exactly how time is used in the system.
-* At some point, we had a variant of the `ask/1` call which was synchronous. The remarkable observation is that we can make this asynchronous and it is *still* correct with respect to the model. The reason is that the observation on the ETS table is atomic and it is doesn't matter if we observe it from the inside or the outside of the `fuse_srv` process.
+* The EQC model suggested the introduction of the `Context` variable and the handling of different operating contexts.
 
 The monitor model found the following:
 

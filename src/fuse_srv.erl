@@ -13,11 +13,11 @@
 
 %% Operational API
 -export([
-    ask/1,
+    ask/2,
     install/2,
     melt/1,
     reset/1,
-    run/2]).
+    run/3]).
 
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
@@ -64,10 +64,15 @@ install(Name, Opts) ->
 	Fuse = init_state(Name, Opts),
 	gen_server:call(?MODULE, {install, Fuse}).
 
-%% @doc ask/1 asks about the current given fuse state
+%% @doc ask/2 asks about the current given fuse state in a given context setting
 %% The documentation is (@see fuse:ask/1)
 %% @end
-ask(Name) ->
+-spec ask(atom(), fuse:fuse_context()) -> ok | blown | {error, not_found}.
+ask(Name, sync) -> gen_server:call(?MODULE, {ask, Name});
+ask(Name, async_dirty) -> ask_(Name).
+
+%% ask_/1 is the real ask function.
+ask_(Name) ->
     try ets:lookup_element(?TAB, Name, 2) of
         ok ->
           _ = folsom_metrics:notify({metric(Name, <<"ok">>), 1}),
@@ -103,16 +108,16 @@ sync() ->
 q_melts() ->
     gen_server:call(?MODULE, q_melts).
 
-%% run/2 runs a thunk under a given fuse
-%% @doc Documentation is (@see fuse:run/2)
+%% run/3 runs a thunk under a given fuse in a given context
+%% @doc Documentation is (@see fuse:run/3)
 %% @end
 %% @private
--spec run(Name, fun(() -> {ok, Result} | {melt, Result})) -> {ok, Result} | blown | {error, not_found}
+-spec run(Name, fun(() -> {ok, Result} | {melt, Result}), fuse:fuse_context()) -> {ok, Result} | blown | {error, not_found}
   when
     Name :: atom(),
     Result :: any().
-run(Name, Func) ->
-    case ask(Name) of
+run(Name, Func, Context) ->
+    case ask(Name, Context) of
         blown -> blown;
         ok ->
           case Func() of
@@ -154,6 +159,8 @@ handle_call({melt, Name}, _From, State) ->
 	    {reply, ok, State2};
 	  not_found -> {reply, ok, State2}
 	end;
+handle_call({ask, Name}, _F, State) ->
+	{reply, ask_(Name), State};
 handle_call(sync, _F, State) ->
 	{reply, ok, State};
 handle_call(q_melts, _From, #state { fuses = Fs } = State) ->

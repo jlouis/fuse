@@ -186,7 +186,7 @@ reset_next(S, _V, [Name]) ->
 %% ---------------------------------------------------------------
 %% Split into two variants
 ask_installed(Name) ->
-	fuse:ask(Name).
+	fuse:ask(Name, sync).
 	
 ask_installed_pre(S) -> has_fuses_installed(S).
 
@@ -204,7 +204,7 @@ ask_installed_post(S, [Name], Ret) ->
     eq(Ret, V).
 
 ask(Name) ->
-	fuse:ask(Name).
+	fuse:ask(Name, sync).
 	
 ask_pre(S) ->
 	has_fuses_installed(S).
@@ -229,7 +229,7 @@ ask_post(S, [Name], Ret) ->
 %%% run/1 runs a function (thunk) on the circuit breaker
 %% ---------------------------------------------------------------
 run(Name, _Result, _Return, Fun) ->
-	fuse:run(Name, Fun).
+	fuse:run(Name, Fun, sync).
 	
 run_pre(S) ->
 	has_fuses_installed(S).
@@ -542,6 +542,9 @@ rv(What, T) ->
 
 pulse_instrument() ->
   [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ],
+  load_sasl().
+  
+load_sasl() ->
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),
   application:set_env(sasl, errlog_type, error),

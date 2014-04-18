@@ -11,7 +11,7 @@
 
 %%% Model state.
 -record(state, {
-          time = {0, 0, 0},  % Current time in the model. We track time to handle melting time points.
+          time = {0, 1000*1000 - 1, 0},  % Current time in the model. We track time to handle melting time points.
           melts = [], % History of current melts issued to the SUT
           blown = [], % List of currently blown fuses
           installed = [], % List of installed fuses, with their configuration.
@@ -367,7 +367,7 @@ prop_model_seq() ->
     fault_rate(1, 40,
 	?FORALL(Cmds, more_commands(2, commands(?MODULE)),
 	  begin
-              fuse_time:start(),
+              fuse_time:start({0, 1000*1000 - 1, 0}),
               cleanup(),
               {H, S, R} = run_commands(?MODULE, Cmds),
               aggregate(command_names(Cmds),
@@ -388,7 +388,7 @@ prop_model_par() ->
                      Shrinking -> 20
 		  end,
 	  begin
-              fuse_time:start(),
+              fuse_time:start({0, 1000*1000 - 1, 0}),
               cleanup(),
               {H, S, R} = run_parallel_commands(?MODULE, Cmds),
               aggregate(command_names(Cmds),
@@ -404,7 +404,7 @@ x_prop_model_pulse() ->
   ?FORALL(Cmds, parallel_commands(?MODULE),
   ?PULSE(HSR={_, _, R},
     begin
-      fuse_time:start(),
+      fuse_time:start({0, 1000*1000 - 1, 0}),
       cleanup(),
       run_parallel_commands(?MODULE, Cmds)
     end,

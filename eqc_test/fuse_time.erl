@@ -11,7 +11,7 @@
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("pulse_otp/include/pulse_otp.hrl").
 
--export([start/0, init/1]).
+-export([start/1, init/2]).
 -export([timestamp/0,elapse_time/1]).
 -export([send_after/3, cancel_timer/1]).
 -export([inc/2]).
@@ -39,24 +39,24 @@ elapse_time(N) ->
       exit(timeout)
   end.
 
-start() ->
+start(Time) ->
   case whereis(?MODULE) of
     Pid when is_pid(Pid) ->
-      Pid ! {reset, self()},
+      Pid ! {reset, self(), Time},
       receive
           ok -> ok
       end;
     undefined ->
-      spawn_link(fuse_time, init, [self()]),
+      spawn_link(fuse_time, init, [self(), Time]),
       receive 
 	ok -> ?MODULE
       end
   end.
 
-init(From) ->
+init(From, Time) ->
   register(?MODULE, self()),
   From ! ok,
-  loop({0,0,0}).
+  loop(Time).
 
 loop(Time) ->
   receive
@@ -67,9 +67,9 @@ loop(Time) ->
       NewTime = inc(Time,N),
       From ! {timestamp, NewTime},
       loop(NewTime);
-    {reset, From} ->
+    {reset, From, RTime} ->
       From ! ok,
-      loop({0,0,0});
+      loop(RTime);
     stop ->
       Time
   end.

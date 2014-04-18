@@ -45,6 +45,7 @@ less(X,Y) ->
 prop_os() ->
   ?FORALL(Cmds, commands(?MODULE),
 	  begin
+	    fuse_time:start({0,0,0}),
 	    {H, S, Res} = run_commands(?MODULE,Cmds),
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)
@@ -53,7 +54,7 @@ prop_os() ->
 prop_os_par() ->
   ?FORALL(Cmds, parallel_commands(?MODULE),
 	  begin
-	    fuse_time:start(),
+	    fuse_time:start({0,0,0}),
 	    {H, S, Res} = run_parallel_commands(?MODULE,Cmds),
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)

@@ -5,6 +5,8 @@
 
 -compile(export_all).
 
+-define(TAB, fuse_state).
+
 -record(state, {
 	installed = [],
 	history = orddict:new(),
@@ -148,9 +150,9 @@ cleanup() ->
 %%% The property of the model
 prop_component_correct() ->
 	?SETUP(fun() ->
-		ets:new(fuse_srv, [named_table, public]),
+		ets:new(?TAB, [named_table, public]),
 		eqc_mocking:start_mocking(api_spec()),
-		fun() -> ets:delete(fuse_srv), ok end
+		fun() -> ets:delete(?TAB), ok end
 	end,
 	?FORALL(Cmds, commands(?MODULE),
         ?TRAPEXIT(
@@ -164,8 +166,8 @@ prop_component_correct() ->
 	  
 %%% Internals
 make_table(Entries) ->
-	true = ets:delete_all_objects(fuse_srv),
-	true = ets:insert_new(fuse_srv, Entries),
+	true = ets:delete_all_objects(?TAB),
+	true = ets:insert_new(?TAB, Entries),
 	ok.
 	
 mk_entries([{Name, [St | _]} | Rest]) ->

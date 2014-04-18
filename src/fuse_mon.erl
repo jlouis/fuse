@@ -13,6 +13,8 @@
 -define(SEND_AFTER, erlang:send_after).
 -endif.
 
+-define(TAB, fuse_state).
+
 %% Lifetime
 -export([start_link/0]).
 
@@ -72,7 +74,7 @@ code_change(_OldVsn, State, _Extra) ->
 	
 %%% Internal API
 handle_fuses(#state { history = Hist } = State) ->
-	Fuses = ets:match_object(fuse_srv, '_'),
+	Fuses = ets:match_object(?TAB, '_'),
 	TrackedHistory = track_histories(Fuses, Hist),
 	{AlarmsToChange, UpdatedState} = analyze(State#state { history = TrackedHistory }),
 	process_alarms(AlarmsToChange),

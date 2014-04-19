@@ -2,4 +2,4 @@ language: erlang
 
 script: "make all; make tests"
 otp_release:
-   - R16B03-1;
+   - R16B03-1

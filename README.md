@@ -4,38 +4,34 @@ This application implements a so-called circuit-breaker for Erlang.
 
 [![Build Status](https://travis-ci.org/jlouis/fuse.png?branch=master)](https://travis-ci.org/jlouis/fuse)
 
-The current code status is that we have extensive test cases and test
-frameworks written around the code, but it has not been used in
-production systems yet. If you use the system in production, I would
-very much like to hear about it. Especially if you encountered any
-problems while doing so.
+The current code status is that we have extensive test cases and test frameworks written around the code, but it has not been used in production systems yet. If you use the system in production, I would very much like to hear about it. Especially if you encountered any problems while doing so.
 
 # Changelog
 
-We use semantic versioning:
+We use semantic versioning. In release `X.Y.Z` we bump
+
+* `X` whenever we break backwards compatibility
+* `Y` whenever we add additional—but backwards compatible—functionality
+* `Z` whenever we do a point release fixing bugs
 
 ### 1.0.0
 
 Initial Release.
 
-# Introduction
+# Background
 
 When we build large systems, one of the problems we face is what happens when we have long dependency chains of applications. We might have a case where applications call like this:
 
 	app_A → app_B → app_C
 	
-Now, if we begin having errors in application `B` down the road, the problem is that application `A` needs to handle this by waiting for a timeout of Application B all the time. This incurs latency in the code base. A Circuit Breaker detects the error in the underlying system and then avoids making further queries. This allows you to handle the breakage systematically in the system. For long cascades, layering of circuit breakers allow one to detect exactly which application is responsible for the breakage.
+Now, if we begin having errors in application `B`, the problem is that application `A` needs to handle this by waiting for a timeout of Application `B` all the time. This incurs latency in the code base. A Circuit Breaker detects the error in the underlying system and then avoids making further queries. This allows you to handle the breakage systematically in the system. For long cascades, layering of circuit breakers allow one to detect exactly which application is responsible for the breakage.
 
 A broken circuit introduces some good characteristics in the system:
 
 * There is no buffer/queue buildup since requests can get passed immediately. No waste of resources is had.
 * Returning from a broken circuit has favorable latency close to 0μs. This allows code to try a backup system quickly, or to give negative feedback.
 * Clients can discriminate a system with slow response time from one that is genuinely broken. For the vast majority of clients, this is beneficial. A front-end can opt to skip displaying of certain elements, should the backend parts be down.
-* Circuits introduce a point where your cascading dependencies can be
-  easily monitored. By moving monitoring and reporting to another
-  subsystem, one achieves decoupling between the system doing
-  operation and the system overseeing operation. This is usually nice
-  from an architectural perspective.
+* Circuits introduce a point where your cascading dependencies can be easily monitored. By moving monitoring and reporting to another subsystem, one achieves decoupling between the system doing operation and the system overseeing operation. This is usually nice from an architectural perspective.
 
 The broken circuit will be retried once in a while. The system will then auto-heal if connectivity comes back for the underlying systems. 
 
@@ -56,7 +52,7 @@ List of people who have made contributions to the project of substantial size:
 
 # Documentation
 
-Read the tutorial in the next section. For a command referece, there is full EDoc documentation via `make docs`. Note that great care has been taken to produce precise documentation of the stable API fragment of the tool.
+Read the tutorial in the next section. For a command referece, there is full EDoc documentation via `make docs`. Note that great care has been taken to produce precise documentation of the stable API fragment of the tool. If you find anything to be undocumented, please open an Issue—or better: a pull request with a patch!
 
 # Tutorial
 
@@ -64,7 +60,7 @@ To use fuse, you must first start the fuse application:
 
 	application:start(fuse).
 	
-but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must install a fuse into the system by *installing* a fuse description. This is usually done as part of the `application:start/1` callback:
+but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must add a fuse into the system by *installing* a fuse description. This is usually done as part of the `application:start/1` callback:
 
 	Name = database_fuse
 	Strategy = {standard, MaxR, MaxT},
@@ -80,9 +76,7 @@ This sets up a *fuse* with a given Name and a given set of options. Options are 
 Fuses are name-created idempotently, so your application can recreate a fuse if it wants. Note however, that fuse recreation has two major rules:
 
 * Reinstalling a fuse resets its internal state.
-* Reinstalling a fuse can reset its options.
-
-So re-creation of a fuse overwrites the existing fuse.
+* Reinstalling a fuse overwrites the options.
 
 Once you have installed a fuse, you can ask about its state:
 
@@ -95,7 +89,7 @@ Once you have installed a fuse, you can ask about its state:
 This queries the fuse for its state and lets you handle the case where it is currently blown. The `Context` specifies the context under which the fuses is running (like in mnesia). There are currently two available contexts:
 
 * `sync` - call the fuse synchronously. This is the safe way where each call is factored through the fuse server. It has no known race conditions.
-* `async_dirty` - A fast call path, which circumvents the single fuse_srv process. It is much faster, but has been known to provide rare races in which parallel processes might observe the wrong values. It *is* eventually consistent though.
+* `async_dirty` - A fast call path, which circumvents the single fuse_srv process. It is much faster, but has been known to provide rare races in which parallel processes might observe the wrong values. In other words, with `Context = async_dirty` the calls are not linearizible.
 
 Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
 
@@ -106,7 +100,7 @@ Now suppose you have a working fuse, but you suddenly realize you get errors of 
 	    …
 	end,
 	
-The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct.Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
+The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
 
 * It is overload-safe against the fuse code. Even if processes can outrun the fuse, it cannot build up queue due to this (though this is only the case if there is a bounded number of accessors to the fuse).
 * It is on the slow-path. When we melt, we are in a bad situation. So waiting a bit more before given an answer back is probably not going to be a problem. We picked this choice explicitly in order to make sure it works under load.
@@ -123,7 +117,7 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 		blown -> …
 	end,
 
-this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs.
+this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs. As with `ask/1`, you must supply your desired context.
 
 ## Monitoring fuse state
 
@@ -139,7 +133,7 @@ Furthermore, fuses raises alarms when they are blown. They raise an alarm under 
 
 # Fuse events
 
-The *fuse* system contains an event handler, `fuse_evt` which can be used to listen on events and react when events trigger in the fuse subsystem. It will send events which are given by the following dialyzer specification `{atom(), blown, ok}`. Where the `atom()` is the name of the installed fuse.
+The *fuse* system contains an event handler, `fuse_evt` which can be used to listen on events and react when events trigger in the fuse subsystem. It will send events which are given by the following dialyzer specification `{atom(), blown | ok}`. Where the `atom()` is the name of the installed fuse.
 
 The intended use is to evict waiters from queues in a system. Suppose you are queueing workers up for answers, blocking the workers in the process. When the workers were queued, the fuse was not blown, but now it suddenly broke. You can then install an event handler which pushes a message to the queueing process and tells it the fuse is broken. It can then react by evicting all the entries in queue as if the fuse was broken.
 
@@ -160,7 +154,9 @@ And then in the Erlang console, you can execute
 
 	make:all([load]).
 	error_logger:tty(false). % Shut up the error logger while running tests
-	eqc:module(fuse_eqc).
+	eqc:module(fuse_eqc),
+	…
+	fuse_eqc(par, {3, min}).
 
 I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
 
@@ -243,4 +239,3 @@ Development guided by properties leads to a code base which is considerably smal
 The monitor model found the following:
 
 * Monitor handling was incorrect and the hysteresis was not implemented correctly, leading to numerous flaps on the alarms.
-

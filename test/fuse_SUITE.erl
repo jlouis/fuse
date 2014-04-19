@@ -102,4 +102,7 @@ reset_test(_Config) ->
 	blown = fuse:ask(?FUSE_RESET, sync),
 	ok = fuse:reset(?FUSE_RESET),
 	ok = fuse:ask(?FUSE_RESET, sync),
+	3 = proplists:get_value(one, folsom_metrics:get_metric_value('reset_fuse.melt')),
+	2 = proplists:get_value(one, folsom_metrics:get_metric_value('reset_fuse.ok')),
+	1 = proplists:get_value(one, folsom_metrics:get_metric_value('reset_fuse.blown')),
 	ok.

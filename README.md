@@ -131,8 +131,9 @@ Fuses installed into the system are automatically instrumented in two ways, `fol
 
 A fuse named `foo` reports to `folsom` with the following stats:
 
-* Two spirals: `foo.ok` and `foo.blown` which are increased whenever someone `ask/1`'s the fuse.
-* A meter: `foo.melt` whenever the fuse is melted.
+* Three spirals: `foo.ok`, `foo.melt` and `foo.blown`. The `ok` and `blown` metrics are increased on every `ask/2` call to the fuse. The `melt` metric is increased whenever we see a melt happen.
+
+*Note:* The metrics are subject to change. Especially if someone can come up with better metrics to instrument for in the system.
 
 Furthermore, fuses raises alarms when they are blown. They raise an alarm under the same name as the fuse itself. To clear the alarm, the system uses hysteresis. It has to see 3 consecutive `ok` states on a fuse before clearing the alarm. This is to avoid alarm states from flapping excessively.
 

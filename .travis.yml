@@ -1,6 +1,6 @@
 language: erlang
 
-script: "make deps app tests"
+script: "make all tests"
 otp_release:
    - 17.0
    - R16B03-1

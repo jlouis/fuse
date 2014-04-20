@@ -403,7 +403,7 @@ x_prop_model_pulse() ->
                    setup(),
                    fun() -> ok end
            end,
-  ?FORALL(Cmds, parallel_commands(?MODULE),
+  ?FORALL(Cmds, more_commands(2, parallel_commands(?MODULE)),
   ?PULSE(HSR={_, _, R},
     begin
       fuse_time:start({0, 1000*1000 - 1, 0}),

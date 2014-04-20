@@ -4,7 +4,15 @@ This application implements a so-called circuit-breaker for Erlang.
 
 [![Build Status](https://travis-ci.org/jlouis/fuse.png?branch=master)](https://travis-ci.org/jlouis/fuse)
 
+*NOTE*: If you need to access FUSE (Filesystem in Userspace) then this is not the project you want. An Erlang implementation can be found in the *fuserl* project, https://code.google.com/p/fuserl/ or https://github.com/tonyrog/fuserl gives the pointers.
+
 The current code status is that we have extensive test cases and test frameworks written around the code, but it has not been used in production systems yet. If you use the system in production, I would very much like to hear about it. Especially if you encountered any problems while doing so.
+
+### Alternative implementations:
+
+I know of a couple of alternative circuit breaker implementations for Erlang:
+
+* *breaky* - https://github.com/mmzeeman/breaky - Breaky is implemented as an FSM in front of the protected service. This is another implementation model in which the breaker also controls service restarts once they fail. As such, it implements a slightly different pattern than *fuse*. In breaky, you have a process which can fail and you have a restart policy for that process. *breaky* will then handle the automatic restart policy and do circuit breaking handling for you. It is used in systems like Zotonic to handle cascading errors there.
 
 # Changelog
 

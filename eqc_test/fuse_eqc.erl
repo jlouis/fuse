@@ -403,16 +403,17 @@ x_prop_model_pulse() ->
                    setup(),
                    fun() -> ok end
            end,
+  ?LET(Shrinking, parameter(shrinking, false),
   ?FORALL(Cmds, more_commands(2, parallel_commands(?MODULE)),
-  ?PULSE(HSR={_, _, R},
-    begin
-      fuse_time:start({0, 1000*1000 - 1, 0}),
-      cleanup(),
-      run_parallel_commands(?MODULE, Cmds)
-    end,
-    aggregate(command_names(Cmds),
-    pretty_commands(?MODULE, Cmds, HSR,
-      R == ok))))).
+    ?ALWAYS(if not Shrinking -> 1; Shrinking -> 20 end,
+      ?PULSE(HSR={_, _, R},
+        begin
+          fuse_time:start({0, 1000*1000 - 1, 0}),
+          cleanup(),
+          run_parallel_commands(?MODULE, Cmds)
+        end,
+        aggregate(command_names(Cmds),
+        pretty_commands(?MODULE, Cmds, HSR, R == ok))))))).
 
 -ifdef(WITH_PULSE).
 setup() ->

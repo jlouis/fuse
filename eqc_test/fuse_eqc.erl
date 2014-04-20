@@ -18,6 +18,8 @@
           reqs = [] %% Record the requirements we test
 }).
 
+-define(CONTEXT, async_dirty).
+
 %% API Generators
 
 %% fuses/0 is the list of fuses we support in the model for testing purposes.
@@ -186,7 +188,7 @@ reset_next(S, _V, [Name]) ->
 %% ---------------------------------------------------------------
 %% Split into two variants
 ask_installed(Name) ->
-	fuse:ask(Name, sync).
+	fuse:ask(Name, ?CONTEXT).
 	
 ask_installed_pre(S) -> has_fuses_installed(S).
 
@@ -204,7 +206,7 @@ ask_installed_post(S, [Name], Ret) ->
     eq(Ret, V).
 
 ask(Name) ->
-	fuse:ask(Name, sync).
+	fuse:ask(Name, ?CONTEXT).
 	
 ask_pre(S) ->
 	has_fuses_installed(S).
@@ -229,7 +231,7 @@ ask_post(S, [Name], Ret) ->
 %%% run/1 runs a function (thunk) on the circuit breaker
 %% ---------------------------------------------------------------
 run(Name, _Result, _Return, Fun) ->
-	fuse:run(Name, Fun, sync).
+	fuse:run(Name, Fun, ?CONTEXT).
 	
 run_pre(S) ->
 	has_fuses_installed(S).

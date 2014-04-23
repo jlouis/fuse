@@ -18,7 +18,7 @@
           reqs = [] %% Record the requirements we test
 }).
 
--define(CONTEXT, async_dirty).
+-define(CONTEXT, sync).
 
 %% API Generators
 

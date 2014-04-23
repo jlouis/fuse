@@ -14,6 +14,8 @@ I know of a couple of alternative circuit breaker implementations for Erlang:
 
 * *breaky* - https://github.com/mmzeeman/breaky - Breaky is implemented as an FSM in front of the protected service. This is another implementation model in which the breaker also controls service restarts once they fail. As such, it implements a slightly different pattern than *fuse*. In breaky, you have a process which can fail and you have a restart policy for that process. *breaky* will then handle the automatic restart policy and do circuit breaking handling for you. It is used in systems like Zotonic to handle cascading errors there.
 
+* *circuit_breaker* - https://github.com/klarna/circuit_breaker - Klarna's battle-tested circuit breaker application. The pattern here is much closer to what fuse provides. However, the main difference is that in circuit_breaker, there can be different thresholds for different error types. This means you can be more specific as to what kind of error you have and how you plan on handling it. While this tool has no tests, it does have 8+ years of battle-testing.
+
 # Changelog
 
 We use semantic versioning. In release `X.Y.Z` we bump

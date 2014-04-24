@@ -94,8 +94,8 @@ elapse_time_post(#state { time = T }, [N], NewTime) ->
 %% ---------------------------------------------------------------
 %% Heal a fuse which has been blown in the system.
 fuse_reset(Name) ->
-    fuse_srv ! {reset, Name},
-    fuse_srv:sync(), %% synchronize to avoid a race condition.
+    fuse_server ! {reset, Name},
+    fuse_server:sync(), %% synchronize to avoid a race condition.
     ok.
 
 %% You can reset a fuse if there is a blown fuse in the system.
@@ -340,7 +340,7 @@ req(Req,S) ->
 
 %% Check that the system is actually returning the values we want
 %% invariant(#state { melts = Melts }) ->
-%%     SUTMelts = [{N, length(L)} || {N, L} <- fuse_srv:q_melts(), length(L) > 0],
+%%     SUTMelts = [{N, length(L)} || {N, L} <- fuse_server:q_melts(), length(L) > 0],
 %%     ModelMelts = compute_melt_times(Melts),
 %%     eq(
 %%     	lists:sort(SUTMelts),

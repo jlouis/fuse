@@ -1,6 +1,6 @@
 %%% @doc Runs the fuse server in the system
 %%% @private
--module(fuse_srv).
+-module(fuse_server).
 -behaviour(gen_server).
 
 -ifdef(PULSE).
@@ -100,7 +100,7 @@ reset(Name) ->
 melt(Name) ->
 	gen_server:call(?MODULE, {melt, Name}).
     
-%% sync/0 syncs the fuse_srv. For internal use only in tests
+%% sync/0 syncs the server. For internal use only in tests
 %% @private
 sync() ->
     gen_server:call(?MODULE, sync).

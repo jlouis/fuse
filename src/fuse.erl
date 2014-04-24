@@ -33,7 +33,7 @@
 	  Reason :: any().
 install(Name, Options) ->
     options_ok(Options),
-    fuse_srv:install(Name, Options).
+    fuse_server:install(Name, Options).
 
 %% @doc run/2 runs a thunk under a given fuse
 %% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'
@@ -42,7 +42,7 @@ install(Name, Options) ->
     when
       Name :: atom(),
       Result :: any().
-run(Name, Func, Context) -> fuse_srv:run(Name, Func, Context).
+run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
 
 
 %% @doc ask/1 queries the state of a fuse
@@ -51,7 +51,7 @@ run(Name, Func, Context) -> fuse_srv:run(Name, Func, Context).
 %% @end
 -spec ask(Name, fuse_context()) -> ok | blown | {error, not_found}
   when Name :: atom().
-ask(Name, Context) -> fuse_srv:ask(Name, Context).
+ask(Name, Context) -> fuse_server:ask(Name, Context).
 
 %% @doc reset/1 resets a fuse
 %% Given `reset(N)' this resets the fuse under the name `N'. The fuse will be unbroken with no melts.
@@ -59,7 +59,7 @@ ask(Name, Context) -> fuse_srv:ask(Name, Context).
 -spec reset(Name) -> ok | {error, not_found}
   when Name :: atom().
 reset(Name) ->
-    fuse_srv:reset(Name).
+    fuse_server:reset(Name).
 
 %% @doc melt/1 melts a fuse a little bit
 %% A call to `melt(N)' will melt fuse `N'. This call always returns `ok' and it is currently implemented synchronously.
@@ -67,7 +67,7 @@ reset(Name) ->
 -spec melt(Name) -> ok
   when Name :: atom().
 melt(Name) ->
-	fuse_srv:melt(Name).
+	fuse_server:melt(Name).
 
 %% Internal functions
 %% -----------------------

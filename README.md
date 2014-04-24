@@ -103,7 +103,7 @@ Once you have installed a fuse, you can ask about its state:
 This queries the fuse for its state and lets you handle the case where it is currently blown. The `Context` specifies the context under which the fuses is running (like in mnesia). There are currently two available contexts:
 
 * `sync` - call the fuse synchronously. This is the safe way where each call is factored through the fuse server. It has no known race conditions.
-* `async_dirty` - A fast call path, which circumvents the single fuse_srv process. It is much faster, but has been known to provide rare races in which parallel processes might observe the wrong values. In other words, with `Context = async_dirty` the calls are not linearizible.
+* `async_dirty` - A fast call path, which circumvents the single `fuse_server` process. It is much faster, but has been known to provide rare races in which parallel processes might observe the wrong values. In other words, with `Context = async_dirty` the calls are not linearizible.
 
 Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
 
@@ -225,7 +225,7 @@ QuickCheck allows us to test for requirements of a system. This essentially test
 Furthermore:
 
 * The EQC Test harness tests its internal consistency of time handling by using properties to test its own model for correctness.
-* Makes a case as to why timestamping should happen inside `fuse_srv` and not outside (clocks can skew and time can go backwards if clients draw from a time source. In a distributed setting, it is even worse).
+* Makes a case as to why timestamping should happen inside `fuse_server` and not outside (clocks can skew and time can go backwards if clients draw from a time source. In a distributed setting, it is even worse).
 
 # Subtle Errors found by EQC
 

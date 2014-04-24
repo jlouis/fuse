@@ -26,4 +26,4 @@ init([]) ->
     {ok, { {rest_for_one, 5, 3600},
            [?CHILD(fuse_srv, []),
             ?CHILD(fuse_event, []),
-            ?CHILD(fuse_mon, [])]}}.
+            ?CHILD(fuse_monitor, [])]}}.

@@ -68,8 +68,8 @@ install_next(#state { installed = Is } = S, _V, [Name]) ->
 
 process(Entries) ->
 	make_table(Entries),
-	fuse_mon ! timeout,
-	fuse_mon:sync(). 
+	fuse_monitor ! timeout,
+	fuse_monitor:sync(). 
 	
 %% We even consider processing without any installed fuses
 process_args(#state { installed = Is }) ->
@@ -135,12 +135,12 @@ track_history_next(#state { history = Installed } = S, _V, [N, V]) ->
  	S#state { history = Update }.
  
 startup() ->
-	{ok, _Pid} = fuse_mon:start_link(),
+	{ok, _Pid} = fuse_monitor:start_link(),
 	ok.
 	
 cleanup() ->
 	process_flag(trap_exit, true),
-	exit(whereis(fuse_mon), stoppitystop),
+	exit(whereis(fuse_monitor), stoppitystop),
 	receive
 		{'EXIT', _Pid, stoppitystop} -> ok
 	end,

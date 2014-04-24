@@ -1,6 +1,6 @@
-%%% @doc fuse_mon monitors the fuse state and reports it
+%%% @doc fuse_monitor monitors the fuse state and reports it
 %%% @private
--module(fuse_mon).
+-module(fuse_monitor).
 -behaviour(gen_server).
 
 -ifdef(PULSE).

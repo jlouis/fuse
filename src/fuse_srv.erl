@@ -260,12 +260,12 @@ difference({_, TimeS, _}, {_, CurS, _}) ->
 
 blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}),
-    fuse_evt:notify({Name, blown}),
+    fuse_event:notify({Name, blown}),
     ok.
 
 fix(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, ok}),
-    fuse_evt:notify({Name, ok}),
+    fuse_event:notify({Name, ok}),
     ok.
 
 install_metrics(#fuse { name = N }) ->

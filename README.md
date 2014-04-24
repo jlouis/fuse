@@ -14,7 +14,7 @@ I know of a couple of alternative circuit breaker implementations for Erlang:
 
 * *breaky* - https://github.com/mmzeeman/breaky - Breaky is implemented as an FSM in front of the protected service. This is another implementation model in which the breaker also controls service restarts once they fail. As such, it implements a slightly different pattern than *fuse*. In breaky, you have a process which can fail and you have a restart policy for that process. *breaky* will then handle the automatic restart policy and do circuit breaking handling for you. It is used in systems like Zotonic to handle cascading errors there.
 
-* *circuit_breaker* - https://github.com/klarna/circuit_breaker - Klarna's battle-tested circuit breaker application. The pattern here is much closer to what fuse provides. However, the main difference is that in circuit_breaker, there can be different thresholds for different error types. This means you can be more specific as to what kind of error you have and how you plan on handling it. While this tool has no tests, it does have 8+ years of battle-testing.
+* *circuit_breaker* - https://github.com/klarna/circuit_breaker - Klarna's battle-tested circuit breaker application. The pattern here is much closer to what fuse provides. However, the main difference is that in circuit_breaker, there can be different thresholds for different error types. This means you can be more specific as to what kind of error you have and how you plan on handling it. This tool also has the advantage of 8 years of battle-testing in production at Klarna. It may fit your use case if you can tolerate spawning a function per call to the circuit breaker application.
 
 # Changelog
 
@@ -23,6 +23,10 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `X` whenever we break backwards compatibility
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
+
+### 1.1.0
+
+Rename `fuse_evt` → `fuse_event`. While this is not strictly a valid thing, since we break backwards compatibility, I hope no-one have begun using Fuse yet. As such, I decided to make this a minor bump instead.
 
 ### 1.0.0
 
@@ -143,7 +147,7 @@ Furthermore, fuses raises alarms when they are blown. They raise an alarm under 
 
 # Fuse events
 
-The *fuse* system contains an event handler, `fuse_evt` which can be used to listen on events and react when events trigger in the fuse subsystem. It will send events which are given by the following dialyzer specification `{atom(), blown | ok}`. Where the `atom()` is the name of the installed fuse.
+The *fuse* system contains an event handler, `fuse_event` which can be used to listen on events and react when events trigger in the fuse subsystem. It will send events which are given by the following dialyzer specification `{atom(), blown | ok}`. Where the `atom()` is the name of the installed fuse.
 
 The intended use is to evict waiters from queues in a system. Suppose you are queueing workers up for answers, blocking the workers in the process. When the workers were queued, the fuse was not blown, but now it suddenly broke. You can then install an event handler which pushes a message to the queueing process and tells it the fuse is broken. It can then react by evicting all the entries in queue as if the fuse was broken.
 

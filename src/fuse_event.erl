@@ -1,6 +1,6 @@
 %%% @doc Event manager for fuses
 %%% @end
--module(fuse_evt).
+-module(fuse_event).
 
 -ifdef(PULSE).
 -include_lib("pulse_otp/include/pulse_otp.hrl").

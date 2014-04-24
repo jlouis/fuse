@@ -25,5 +25,5 @@ start_link() ->
 init([]) ->
     {ok, { {rest_for_one, 5, 3600},
            [?CHILD(fuse_srv, []),
-            ?CHILD(fuse_evt, []),
+            ?CHILD(fuse_event, []),
             ?CHILD(fuse_mon, [])]}}.

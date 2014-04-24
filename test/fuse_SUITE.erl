@@ -58,7 +58,7 @@ simple_test(_Config) ->
 	ok = gen_event:swap_handler(alarm_handler, {alarm_handler, swap}, {my_ah, [self()]}),
 
 	ct:log("install a new event handler"),
-	ok = fuse_evt:add_handler(my_eh, [self()]),
+	ok = fuse_event:add_handler(my_eh, [self()]),
 
 	ct:log("Set up a new fuse, melt it and then verify it resets correctly"),
 	ok = fuse:install(?FUSE_SIMPLE, {{standard, 2, 60}, {reset, 60*1000}}),
@@ -88,7 +88,7 @@ simple_test(_Config) ->
 		ct:fail(timeout_eh_2)
 	end,
 	ct:log("Removing the handler again"),
-	ok = fuse_evt:delete_handler(my_eh, []),
+	ok = fuse_event:delete_handler(my_eh, []),
 	ok.
 
 -define(FUSE_RESET, reset_fuse).

@@ -248,7 +248,7 @@ Development guided by properties leads to a code base which is considerably smal
 * EQC, using parallel testing, uncovered a problem with the synchronicity of `run/2`.
 * EQC, and helpful hints by Thomas Arts, made it evident that the method used to draw timestamps was incorrect. A new model, where timestamps are generated inside the fuse system was much easier to test and verify.
 * EQC made it clear exactly how time is used in the system.
-* The EQC model suggested the introduction of the `Context` variable and the handling of different operating contexts.
+* The EQC model suggested the introduction of the `Context` variable and the handling of different operating contexts. It also uncovered exactly how limited context handling leads to problems with lineariaziblity of the calls.
 
 The monitor model found the following:
 

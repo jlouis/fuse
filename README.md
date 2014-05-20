@@ -151,6 +151,10 @@ The *fuse* system contains an event handler, `fuse_event` which can be used to l
 
 The intended use is to evict waiters from queues in a system. Suppose you are queueing workers up for answers, blocking the workers in the process. When the workers were queued, the fuse was not blown, but now it suddenly broke. You can then install an event handler which pushes a message to the queueing process and tells it the fuse is broken. It can then react by evicting all the entries in queue as if the fuse was broken.
 
+# Speed
+
+On a Lenovo Thinkpad running Linux 3.14.4 with a processor `Intel(R) Core(TM) i7-3720QM CPU @ 2.60GHz` (An Ivy Bridge) Erlang Release 17.0.1, we get a throughput of 2.1 million fuse queries per second by running the stress test in `stress/stress.erl`. This test also has linear speedup over all the cores. Lookup times are sub-microsecond, usually around the 0.5 ballpark.
+
 # Tests
 
 Fuse is written with two kinds of tests. First of all, it uses a set of Common Test test cases which runs the basic functionality of the system. Furthermore, fuse is written with Erlang QuickCheck test cases. EQC tests are written before the corresponding code is written, and as such, this is "Property Driven Development".

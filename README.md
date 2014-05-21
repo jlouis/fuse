@@ -155,6 +155,10 @@ The intended use is to evict waiters from queues in a system. Suppose you are qu
 
 On a Lenovo Thinkpad running Linux 3.14.4 with a processor `Intel(R) Core(TM) i7-3720QM CPU @ 2.60GHz` (An Ivy Bridge) Erlang Release 17.0.1, we get a throughput of 2.1 million fuse queries per second by running the stress test in `stress/stress.erl`. This test also has linear speedup over all the cores. Lookup times are sub-microsecond, usually around the 0.5 ballpark.
 
+Running on a Q4 2013 Macbook Pro, OSX 10.9.2, 2 Ghz Intel Core i7 (Haswell) yields roughly the same speed.
+
+In practice, your system will be doing other things as well, but do note that the overhead of enabling a fuse is expected to be around 0.5μs in overhead.
+
 # Tests
 
 Fuse is written with two kinds of tests. First of all, it uses a set of Common Test test cases which runs the basic functionality of the system. Furthermore, fuse is written with Erlang QuickCheck test cases. EQC tests are written before the corresponding code is written, and as such, this is "Property Driven Development".

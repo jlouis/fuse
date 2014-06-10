@@ -178,7 +178,7 @@ And then in the Erlang console, you can execute
 	error_logger:tty(false). % Shut up the error logger while running tests
 	eqc:module(fuse_eqc),
 	…
-	fuse_eqc(par, {3, min}).
+	fuse_eqc:r(par, {3, min}).
 
 I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
 

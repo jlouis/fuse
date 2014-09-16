@@ -114,7 +114,7 @@ Now suppose you have a working fuse, but you suddenly realize you get errors of 
 	    …
 	end,
 	
-The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has heated down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
+The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has cooled down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
 
 * It is overload-safe against the fuse code. Even if processes can outrun the fuse, it cannot build up queue due to this (though this is only the case if there is a bounded number of accessors to the fuse).
 * It is on the slow-path. When we melt, we are in a bad situation. So waiting a bit more before given an answer back is probably not going to be a problem. We picked this choice explicitly in order to make sure it works under load.

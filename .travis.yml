@@ -4,5 +4,7 @@ script: "make all; make tests"
 otp_release:
    - R16B03-1
    - 17.0
+   - 17.1
+
 
 

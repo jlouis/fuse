@@ -34,8 +34,7 @@ init_per_suite(Config) ->
 	application:set_env(sasl, errlog_type, error),
 	error_logger:tty(false),
 	ok = application:start(sasl),
-	ok = application:start(folsom),
-	ok = application:start(fuse),
+	{ok, _} = application:ensure_all_started(fuse),
 	Config.
 	
 end_per_suite(_Config) ->	

@@ -12,72 +12,65 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-# Project.
+.PHONY: all deps app rel docs tests clean distclean help
+
+ERLANG_MK_VERSION = 1
+
+# Core configuration.
 
 PROJECT ?= $(notdir $(CURDIR))
 
-# Packages database file.
-
-PKG_FILE ?= $(CURDIR)/.erlang.mk.packages.v1
-export PKG_FILE
-
-PKG_FILE_URL ?= https://raw.github.com/extend/erlang.mk/master/packages.v1.tsv
-
-define get_pkg_file
-	wget --no-check-certificate -O $(PKG_FILE) $(PKG_FILE_URL) || rm $(PKG_FILE)
-endef
-
-# Verbosity and tweaks.
+# Verbosity.
 
 V ?= 0
-
-appsrc_verbose_0 = @echo " APP   " $(PROJECT).app.src;
-appsrc_verbose = $(appsrc_verbose_$(V))
-
-erlc_verbose_0 = @echo " ERLC  " $(filter %.erl %.core,$(?F));
-erlc_verbose = $(erlc_verbose_$(V))
-
-xyrl_verbose_0 = @echo " XYRL  " $(filter %.xrl %.yrl,$(?F));
-xyrl_verbose = $(xyrl_verbose_$(V))
-
-dtl_verbose_0 = @echo " DTL   " $(filter %.dtl,$(?F));
-dtl_verbose = $(dtl_verbose_$(V))
 
 gen_verbose_0 = @echo " GEN   " $@;
 gen_verbose = $(gen_verbose_$(V))
 
-.PHONY: rel clean-rel all clean-all app clean deps clean-deps \
-	docs clean-docs build-tests tests build-plt dialyze
+# Core targets.
 
-# Release.
+all:: deps app rel
 
-RELX_CONFIG ?= $(CURDIR)/relx.config
+clean::
+	$(gen_verbose) rm -f erl_crash.dump
 
-ifneq ($(wildcard $(RELX_CONFIG)),)
+distclean:: clean
 
-RELX ?= $(CURDIR)/relx
-export RELX
+help::
+	@printf "%s\n" \
+		"erlang.mk (version $(ERLANG_MK_VERSION)) is distributed under the terms of the ISC License." \
+		"Copyright (c) 2013-2014 Loïc Hoguin <essen@ninenines.eu>" \
+		"" \
+		"Usage: [V=1] make [target]" \
+		"" \
+		"Core targets:" \
+		"  all         Run deps, app and rel targets in that order" \
+		"  deps        Fetch dependencies (if needed) and compile them" \
+		"  app         Compile the project" \
+		"  rel         Build a release for this project, if applicable" \
+		"  docs        Build the documentation for this project" \
+		"  tests       Run the tests for this project" \
+		"  clean       Delete temporary and output files from most targets" \
+		"  distclean   Delete all temporary and output files" \
+		"  help        Display this help and exit" \
+		"" \
+		"The target clean only removes files that are commonly removed." \
+		"Dependencies and releases are left untouched." \
+		"" \
+		"Setting V=1 when calling make enables verbose mode."
 
-RELX_URL ?= https://github.com/erlware/relx/releases/download/v0.6.0/relx
-RELX_OPTS ?=
+# Core functions.
 
-define get_relx
-	wget -O $(RELX) $(RELX_URL) || rm $(RELX)
-	chmod +x $(RELX)
+define core_http_get
+	wget --no-check-certificate -O $(1) $(2)|| rm $(1)
 endef
 
-rel: clean-rel all $(RELX)
-	@$(RELX) -c $(RELX_CONFIG) $(RELX_OPTS)
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
 
-$(RELX):
-	@$(call get_relx)
+.PHONY: distclean-deps distclean-pkg pkg-list pkg-search
 
-clean-rel:
-	@rm -rf _rel
-
-endif
-
-# Deps directory.
+# Configuration.
 
 DEPS_DIR ?= $(CURDIR)/deps
 export DEPS_DIR
@@ -86,9 +79,6 @@ REBAR_DEPS_DIR = $(DEPS_DIR)
 export REBAR_DEPS_DIR
 
 ALL_DEPS_DIRS = $(addprefix $(DEPS_DIR)/,$(DEPS))
-ALL_TEST_DEPS_DIRS = $(addprefix $(DEPS_DIR)/,$(TEST_DEPS))
-
-# Application.
 
 ifeq ($(filter $(DEPS_DIR),$(subst :, ,$(ERL_LIBS))),)
 ifeq ($(ERL_LIBS),)
@@ -99,64 +89,27 @@ endif
 endif
 export ERL_LIBS
 
-ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
-	+warn_shadow_vars +warn_obsolete_guard # +bin_opt_info +warn_missing_spec
-COMPILE_FIRST ?=
-COMPILE_FIRST_PATHS = $(addprefix src/,$(addsuffix .erl,$(COMPILE_FIRST)))
+PKG_FILE ?= $(CURDIR)/.erlang.mk.packages.v1
+export PKG_FILE
 
-all: deps app
+PKG_FILE_URL ?= https://raw.githubusercontent.com/extend/erlang.mk/master/packages.v1.tsv
 
-clean-all: clean clean-deps clean-docs
-	$(gen_verbose) rm -rf .$(PROJECT).plt $(DEPS_DIR) logs
+# Core targets.
 
-app: ebin/$(PROJECT).app
-	$(eval MODULES := $(shell find ebin -type f -name \*.beam \
-		| sed 's/ebin\///;s/\.beam/,/' | sed '$$s/.$$//'))
-	$(appsrc_verbose) cat src/$(PROJECT).app.src \
-		| sed 's/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/' \
-		> ebin/$(PROJECT).app
+deps:: $(ALL_DEPS_DIRS)
+	@for dep in $(ALL_DEPS_DIRS) ; do \
+		if [ -f $$dep/Makefile ] ; then \
+			$(MAKE) -C $$dep ; \
+		else \
+			echo "include $(CURDIR)/erlang.mk" | $(MAKE) -f - -C $$dep ; \
+		fi ; \
+	done
 
-define compile_erl
-	$(erlc_verbose) erlc -v $(ERLC_OPTS) -o ebin/ \
-		-pa ebin/ -I include/ $(COMPILE_FIRST_PATHS) $(1)
-endef
+distclean:: distclean-deps distclean-pkg
 
-define compile_xyrl
-	$(xyrl_verbose) erlc -v -o ebin/ $(1)
-	$(xyrl_verbose) erlc $(ERLC_OPTS) -o ebin/ ebin/*.erl
-	@rm ebin/*.erl
-endef
+# Deps related targets.
 
-define compile_dtl
-	$(dtl_verbose) erl -noshell -pa ebin/ $(DEPS_DIR)/erlydtl/ebin/ -eval ' \
-		Compile = fun(F) -> \
-			Module = list_to_atom( \
-				string:to_lower(filename:basename(F, ".dtl")) ++ "_dtl"), \
-			erlydtl:compile(F, Module, [{out_dir, "ebin/"}]) \
-		end, \
-		_ = [Compile(F) || F <- string:tokens("$(1)", " ")], \
-		init:stop()'
-endef
-
-ebin/$(PROJECT).app: $(shell find src -type f -name \*.erl) \
-		$(shell find src -type f -name \*.core) \
-		$(shell find src -type f -name \*.xrl) \
-		$(shell find src -type f -name \*.yrl) \
-		$(shell find templates -type f -name \*.dtl 2>/dev/null)
-	@mkdir -p ebin/
-	$(if $(strip $(filter %.erl %.core,$?)), \
-		$(call compile_erl,$(filter %.erl %.core,$?)))
-	$(if $(strip $(filter %.xrl %.yrl,$?)), \
-		$(call compile_xyrl,$(filter %.xrl %.yrl,$?)))
-	$(if $(strip $(filter %.dtl,$?)), \
-		$(call compile_dtl,$(filter %.dtl,$?)))
-
-clean:
-	$(gen_verbose) rm -rf ebin/ test/*.beam erl_crash.dump
-
-# Dependencies.
-
-define get_dep
+define dep_fetch
 	@mkdir -p $(DEPS_DIR)
 ifeq (,$(findstring pkg://,$(word 1,$(dep_$(1)))))
 	git clone -n -- $(word 1,$(dep_$(1))) $(DEPS_DIR)/$(1)
@@ -171,103 +124,18 @@ endef
 
 define dep_target
 $(DEPS_DIR)/$(1):
-	$(call get_dep,$(1))
+	$(call dep_fetch,$(1))
 endef
 
 $(foreach dep,$(DEPS),$(eval $(call dep_target,$(dep))))
 
-deps: $(ALL_DEPS_DIRS)
-	@for dep in $(ALL_DEPS_DIRS) ; do \
-		if [ -f $$dep/Makefile ] ; then \
-			$(MAKE) -C $$dep ; \
-		else \
-			echo "include $(CURDIR)/erlang.mk" | $(MAKE) -f - -C $$dep ; \
-		fi ; \
-	done
+distclean-deps:
+	$(gen_verbose) rm -rf $(DEPS_DIR)
 
-clean-deps:
-	@for dep in $(ALL_DEPS_DIRS) ; do \
-		if [ -f $$dep/Makefile ] ; then \
-			$(MAKE) -C $$dep clean ; \
-		else \
-			echo "include $(CURDIR)/erlang.mk" | $(MAKE) -f - -C $$dep clean ; \
-		fi ; \
-	done
-
-# Documentation.
-
-EDOC_OPTS ?=
-
-docs: clean-docs
-	$(gen_verbose) erl -noshell \
-		-eval 'edoc:application($(PROJECT), ".", [$(EDOC_OPTS)]), init:stop().'
-
-clean-docs:
-	$(gen_verbose) rm -f doc/*.css doc/*.html doc/*.png doc/edoc-info
-
-# Tests.
-
-$(foreach dep,$(TEST_DEPS),$(eval $(call dep_target,$(dep))))
-
-build-test-deps: $(ALL_TEST_DEPS_DIRS)
-	@for dep in $(ALL_TEST_DEPS_DIRS) ; do $(MAKE) -C $$dep; done
-
-build-tests: build-test-deps
-	$(gen_verbose) erlc -v $(ERLC_OPTS) -o test/ \
-		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
-
-CT_OPTS ?=
-CT_RUN = ct_run \
-	-no_auto_compile \
-	-noshell \
-	-pa $(realpath ebin) $(DEPS_DIR)/*/ebin \
-	-dir test \
-	-logdir logs \
-	$(CT_OPTS)
-
-CT_SUITES ?=
-
-define test_target
-test_$(1): ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
-test_$(1): clean deps app build-tests
-	@if [ -d "test" ] ; \
-	then \
-		mkdir -p logs/ ; \
-		$(CT_RUN) -suite $(addsuffix _SUITE,$(1)) ; \
-	fi
-	$(gen_verbose) rm -f test/*.beam
-endef
-
-$(foreach test,$(CT_SUITES),$(eval $(call test_target,$(test))))
-
-tests: ERLC_OPTS += -DTEST=1 +'{parse_transform, eunit_autoexport}'
-tests: clean deps app build-tests
-	@if [ -d "test" ] ; \
-	then \
-		mkdir -p logs/ ; \
-		$(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES)) ; \
-	fi
-	$(gen_verbose) rm -f test/*.beam
-
-# Dialyzer.
-
-DIALYZER_PLT ?= $(CURDIR)/.$(PROJECT).plt
-export DIALYZER_PLT
-
-PLT_APPS ?=
-DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions \
-	-Wunmatched_returns # -Wunderspecs
-
-build-plt: deps app
-	@dialyzer --build_plt --apps erts kernel stdlib $(PLT_APPS) $(ALL_DEPS_DIRS)
-
-dialyze:
-	@dialyzer --src src --no_native $(DIALYZER_OPTS)
-
-# Packages.
+# Packages related targets.
 
 $(PKG_FILE):
-	@$(call get_pkg_file)
+	$(call core_http_get,$(PKG_FILE),$(PKG_FILE_URL))
 
 pkg-list: $(PKG_FILE)
 	@cat $(PKG_FILE) | awk 'BEGIN { FS = "\t" }; { print \
@@ -286,4 +154,277 @@ pkg-search: $(PKG_FILE)
 else
 pkg-search:
 	@echo "Usage: make pkg-search q=STRING"
+endif
+
+distclean-pkg:
+	$(gen_verbose) rm -f $(PKG_FILE)
+
+help::
+	@printf "%s\n" "" \
+		"Package-related targets:" \
+		"  pkg-list              List all known packages" \
+		"  pkg-search q=STRING   Search for STRING in the package index"
+
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: clean-app
+
+# Configuration.
+
+ERLC_OPTS ?= -Werror +debug_info +warn_export_all +warn_export_vars \
+	+warn_shadow_vars +warn_obsolete_guard # +bin_opt_info +warn_missing_spec
+COMPILE_FIRST ?=
+COMPILE_FIRST_PATHS = $(addprefix src/,$(addsuffix .erl,$(COMPILE_FIRST)))
+
+# Verbosity.
+
+appsrc_verbose_0 = @echo " APP   " $(PROJECT).app.src;
+appsrc_verbose = $(appsrc_verbose_$(V))
+
+erlc_verbose_0 = @echo " ERLC  " $(filter %.erl %.core,$(?F));
+erlc_verbose = $(erlc_verbose_$(V))
+
+xyrl_verbose_0 = @echo " XYRL  " $(filter %.xrl %.yrl,$(?F));
+xyrl_verbose = $(xyrl_verbose_$(V))
+
+# Core targets.
+
+app:: ebin/$(PROJECT).app
+	$(eval MODULES := $(shell find ebin -type f -name \*.beam \
+		| sed "s/ebin\//'/;s/\.beam/',/" | sed '$$s/.$$//'))
+	$(appsrc_verbose) cat src/$(PROJECT).app.src \
+		| sed "s/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/" \
+		> ebin/$(PROJECT).app
+
+define compile_erl
+	$(erlc_verbose) erlc -v $(ERLC_OPTS) -o ebin/ \
+		-pa ebin/ -I include/ $(COMPILE_FIRST_PATHS) $(1)
+endef
+
+define compile_xyrl
+	$(xyrl_verbose) erlc -v -o ebin/ $(1)
+	$(xyrl_verbose) erlc $(ERLC_OPTS) -o ebin/ ebin/*.erl
+	@rm ebin/*.erl
+endef
+
+ifneq ($(wildcard src/),)
+ebin/$(PROJECT).app::
+	@mkdir -p ebin/
+
+ebin/$(PROJECT).app:: $(shell find src -type f -name \*.erl) \
+		$(shell find src -type f -name \*.core)
+	$(if $(strip $?),$(call compile_erl,$?))
+
+ebin/$(PROJECT).app:: $(shell find src -type f -name \*.xrl) \
+		$(shell find src -type f -name \*.yrl)
+	$(if $(strip $?),$(call compile_xyrl,$?))
+endif
+
+clean:: clean-app
+
+# Extra targets.
+
+clean-app:
+	$(gen_verbose) rm -rf ebin/
+
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: build-ct-deps build-ct-suites tests-ct clean-ct distclean-ct
+
+# Configuration.
+
+CT_OPTS ?=
+CT_SUITES ?=
+
+TEST_ERLC_OPTS ?= +debug_info +warn_export_vars +warn_shadow_vars +warn_obsolete_guard
+TEST_ERLC_OPTS += -DTEST=1 -DEXTRA=1 +'{parse_transform, eunit_autoexport}'
+
+# Core targets.
+
+tests:: tests-ct
+
+clean:: clean-ct
+
+distclean:: distclean-ct
+
+help::
+	@printf "%s\n" "" \
+		"All your common_test suites have their associated targets." \
+		"A suite named http_SUITE can be ran using the ct-http target."
+
+# Plugin-specific targets.
+
+ALL_TEST_DEPS_DIRS = $(addprefix $(DEPS_DIR)/,$(TEST_DEPS))
+
+CT_RUN = ct_run \
+	-no_auto_compile \
+	-noshell \
+	-pa $(realpath ebin) $(DEPS_DIR)/*/ebin \
+	-dir test \
+	-logdir logs
+
+$(foreach dep,$(TEST_DEPS),$(eval $(call dep_target,$(dep))))
+
+build-ct-deps: $(ALL_TEST_DEPS_DIRS)
+	@for dep in $(ALL_TEST_DEPS_DIRS) ; do $(MAKE) -C $$dep; done
+
+build-ct-suites: build-ct-deps
+	$(gen_verbose) erlc -v $(TEST_ERLC_OPTS) -o test/ \
+		$(wildcard test/*.erl test/*/*.erl) -pa ebin/
+
+tests-ct: ERLC_OPTS = $(TEST_ERLC_OPTS)
+tests-ct: clean deps app build-ct-suites
+	@if [ -d "test" ] ; \
+	then \
+		mkdir -p logs/ ; \
+		$(CT_RUN) -suite $(addsuffix _SUITE,$(CT_SUITES)) $(CT_OPTS) ; \
+	fi
+	$(gen_verbose) rm -f test/*.beam
+
+define ct_suite_target
+ct-$(1): ERLC_OPTS = $(TEST_ERLC_OPTS)
+ct-$(1): clean deps app build-tests
+	@if [ -d "test" ] ; \
+	then \
+		mkdir -p logs/ ; \
+		$(CT_RUN) -suite $(addsuffix _SUITE,$(1)) $(CT_OPTS) ; \
+	fi
+	$(gen_verbose) rm -f test/*.beam
+endef
+
+$(foreach test,$(CT_SUITES),$(eval $(call ct_suite_target,$(test))))
+
+clean-ct:
+	$(gen_verbose) rm -rf test/*.beam
+
+distclean-ct:
+	$(gen_verbose) rm -rf logs/
+
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: plt distclean-plt dialyze
+
+# Configuration.
+
+DIALYZER_PLT ?= $(CURDIR)/.$(PROJECT).plt
+export DIALYZER_PLT
+
+PLT_APPS ?=
+DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions \
+	-Wunmatched_returns # -Wunderspecs
+
+# Core targets.
+
+distclean:: distclean-plt
+
+help::
+	@printf "%s\n" "" \
+		"Dialyzer targets:" \
+		"  plt         Build a PLT file for this project" \
+		"  dialyze     Analyze the project using Dialyzer"
+
+# Plugin-specific targets.
+
+plt: deps app
+	@dialyzer --build_plt --apps erts kernel stdlib $(PLT_APPS) $(ALL_DEPS_DIRS)
+
+distclean-plt:
+	$(gen_verbose) rm -f $(DIALYZER_PLT)
+
+dialyze:
+	@dialyzer --src src --no_native $(DIALYZER_OPTS)
+
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+# Verbosity.
+
+dtl_verbose_0 = @echo " DTL   " $(filter %.dtl,$(?F));
+dtl_verbose = $(dtl_verbose_$(V))
+
+# Core targets.
+
+define compile_erlydtl
+	$(dtl_verbose) erl -noshell -pa ebin/ $(DEPS_DIR)/erlydtl/ebin/ -eval ' \
+		Compile = fun(F) -> \
+			Module = list_to_atom( \
+				string:to_lower(filename:basename(F, ".dtl")) ++ "_dtl"), \
+			erlydtl:compile(F, Module, [{out_dir, "ebin/"}]) \
+		end, \
+		_ = [Compile(F) || F <- string:tokens("$(1)", " ")], \
+		init:stop()'
+endef
+
+ifneq ($(wildcard src/),)
+ebin/$(PROJECT).app:: $(shell find templates -type f -name \*.dtl 2>/dev/null)
+	$(if $(strip $?),$(call compile_erlydtl,$?))
+endif
+
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: distclean-edoc
+
+# Configuration.
+
+EDOC_OPTS ?=
+
+# Core targets.
+
+docs:: distclean-edoc
+	$(gen_verbose) erl -noshell \
+		-eval 'edoc:application($(PROJECT), ".", [$(EDOC_OPTS)]), init:stop().'
+
+distclean:: distclean-edoc
+
+# Plugin-specific targets.
+
+distclean-edoc:
+	$(gen_verbose) rm -f doc/*.css doc/*.html doc/*.png doc/edoc-info
+
+# Copyright (c) 2013-2014, Loïc Hoguin <essen@ninenines.eu>
+# This file is part of erlang.mk and subject to the terms of the ISC License.
+
+.PHONY: distclean-rel
+
+# Configuration.
+
+RELX_CONFIG ?= $(CURDIR)/relx.config
+
+ifneq ($(wildcard $(RELX_CONFIG)),)
+
+RELX ?= $(CURDIR)/relx
+export RELX
+
+RELX_URL ?= https://github.com/erlware/relx/releases/download/v1.0.2/relx
+RELX_OPTS ?=
+RELX_OUTPUT_DIR ?= _rel
+
+ifneq ($(firstword $(subst -o,,$(RELX_OPTS))),)
+	RELX_OUTPUT_DIR = $(firstword $(subst -o,,$(RELX_OPTS)))
+endif
+
+# Core targets.
+
+rel:: distclean-rel $(RELX)
+	@$(RELX) -c $(RELX_CONFIG) $(RELX_OPTS)
+
+distclean:: distclean-rel
+
+# Plugin-specific targets.
+
+define relx_fetch
+	$(call core_http_get,$(RELX),$(RELX_URL))
+	chmod +x $(RELX)
+endef
+
+$(RELX):
+	@$(call relx_fetch)
+
+distclean-rel:
+	$(gen_verbose) rm -rf $(RELX_OUTPUT_DIR)
+
 endif

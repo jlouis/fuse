@@ -133,15 +133,47 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 
 this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs. As with `ask/1`, you must supply your desired context.
 
-## Monitoring fuse state
+# Monitoring fuse state
 
-Fuses installed into the system are automatically instrumented in two ways, `folsom` and the `alarm_handler`.
+Fuses installed into the system are automatically instrumented in two ways: stats plugins and the `alarm_handler`.
 
-A fuse named `foo` reports to `folsom` with the following stats:
+## Stats plugins
 
-* Three spirals: `foo.ok`, `foo.melt` and `foo.blown`. The `ok` and `blown` metrics are increased on every `ask/2` call to the fuse. The `melt` metric is increased whenever we see a melt happen.
+Fuse includes a simple [behaviour](http://www.erlang.org/doc/design_principles/des_princ.html), `fuse_stats_plugin`, for integration with statistics and monitoring systems.
+
+Independent of which stats plugin you use, the `ok` and `blown` metrics are increased on every `ask/2` call to the fuse. The `melt` metric is increased whenever we see a melt happen.
 
 *Note:* The metrics are subject to change. Especially if someone can come up with better metrics to instrument for in the system.
+
+### `fuse_stats_ets`
+
+Maintains simple counts in an [ETS](http://www.erlang.org/doc/man/ets.html) table, which you can retrieve with a call to e.g. `fuse_stats_ets:counters(foo).`
+
+### `fuse_stats_folsom`
+
+Maintains [folsom](https://github.com/boundary/folsom) spirals `foo.ok`, `foo.blown` and `foo.melt`.
+
+### `fuse_stats_exometer`
+
+Maintains [exometer](https://github.com/Feuerlabs/exometer) spirals `[fuse, foo, ok]`, `[fuse, foo, blown]` and `[fuse, foo, melt]`.
+
+### Using a plugin
+
+By default, fuse uses the `fuse_stats_ets` plugin. To use another, set it up in the environment with e.g.
+
+    application:set_env(fuse, stats_plugin, fuse_stats_folsom).
+
+or in a `.config` as
+
+    {fuse, [ {stats_plugin, fuse_stats_folsom} ] }
+
+Note that it's up to you to arrange your application's dependencies such that plugin applications like folsom or exometer are available and started.
+
+### Writing a plugin
+
+See the source of `fuse_stats_plugin` and the plugins above for documentation and examples.
+
+## `alarm_handler`
 
 Furthermore, fuses raises alarms when they are blown. They raise an alarm under the same name as the fuse itself. To clear the alarm, the system uses hysteresis. It has to see 3 consecutive `ok` states on a fuse before clearing the alarm. This is to avoid alarm states from flapping excessively.
 

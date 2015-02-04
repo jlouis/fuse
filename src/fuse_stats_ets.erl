@@ -7,7 +7,7 @@
 %% Creates the stats ETS table if it doesn't already exist.
 -spec init(Name :: atom()) -> ok.
 init(Name) ->
-    case ets:info(?MODULE) of
+    _ = case ets:info(?MODULE) of
         undefined ->
             _ = ets:new(?MODULE, [named_table, public, set,
                                   {write_concurrency, true}]);

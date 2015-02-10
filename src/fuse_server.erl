@@ -73,12 +73,13 @@ ask(Name, async_dirty) -> ask_(Name).
 
 %% ask_/1 is the real ask function.
 ask_(Name) ->
+    StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
     try ets:lookup_element(?TAB, Name, 2) of
         ok ->
-          _ = folsom_metrics:notify({metric(Name, <<"ok">>), 1}),
+          _ = StatsPlugin:increment(Name, ok),
           ok;
         blown ->
-          _ = folsom_metrics:notify({metric(Name, <<"blown">>), 1}),
+          _ = StatsPlugin:increment(Name, blown),
           blown
     catch
         error:badarg ->
@@ -155,7 +156,8 @@ handle_call({melt, Name}, _From, State) ->
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
 	case Res of
 	  ok ->
-	    _ = folsom_metrics:notify({metric(Name, <<"melt">>), 1}),
+            StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
+            _ = StatsPlugin:increment(Name, melt),
 	    {reply, ok, State2};
 	  not_found -> {reply, ok, State2}
 	end;
@@ -269,14 +271,9 @@ fix(#fuse { name = Name }) ->
     ok.
 
 install_metrics(#fuse { name = N }) ->
-	_ = folsom_metrics:new_spiral(metric(N, <<"ok">>)),
-	_ = folsom_metrics:new_spiral(metric(N, <<"blown">>)),
-	_ = folsom_metrics:new_spiral(metric(N, <<"melt">>)),
+	StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
+	_ = StatsPlugin:init(N),
 	ok.
-
-metric(Name, What) ->
-	B = iolist_to_binary([atom_to_list(Name), $., What]),
-	binary_to_atom(B, utf8).
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->

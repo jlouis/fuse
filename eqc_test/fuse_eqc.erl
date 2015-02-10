@@ -425,8 +425,7 @@ setup() ->
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),
   application:set_env(sasl, errlog_type, error),
-  application:start(sasl),
-  application:start(folsom).
+  application:start(sasl).
 -endif.
 
 cleanup() ->
@@ -551,14 +550,12 @@ load_sasl() ->
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),
   application:set_env(sasl, errlog_type, error),
-  application:start(sasl),
-  application:start(folsom),
+  application:start(sasl).
   ok.
 
 pulse_instrument(File) ->
     EffectFul = [
     	{ets, '_', '_'},
-    	{folsom, '_', '_'},
     	{alarm_handler, '_', '_'}],
     io:format("Compiling: ~p~n", [File]),
     {ok, Mod} = compile:file(File, [{d, 'PULSE', true}, {d, 'WITH_PULSE', true},

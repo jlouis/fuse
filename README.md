@@ -61,6 +61,7 @@ Several companies should be thanked:
 
 List of people who have made contributions to the project of substantial size:
 
+* Cian Synnott
 * Jesper Louis Andersen
 * Thomas Arts
 
@@ -167,7 +168,7 @@ or in a `.config` as
 
     {fuse, [ {stats_plugin, fuse_stats_folsom} ] }
 
-Note that it's up to you to arrange your application's dependencies such that plugin applications like folsom or exometer are available and started.
+Note that it's up to you to arrange your application's dependencies such that plugin applications like folsom or exometer are available and started. Fuse has no direct dependency on either folsom or exometer.
 
 ### Writing a plugin
 

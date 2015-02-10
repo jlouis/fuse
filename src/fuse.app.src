@@ -1,6 +1,6 @@
 {application, fuse, [
 	{description, "A Circuit breaker implementation for Erlang"},
-	{vsn, "1.1.0"},
+	{vsn, "2.0.0"},
 	{modules, []},
 	{registered, [fuse_server, fuse_monitor, fuse_event]},
 	{applications, [

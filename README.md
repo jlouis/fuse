@@ -24,6 +24,12 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.0.0
+
+This major release breaks backwards compatibility in statistics. Cian Synott wrote code which generalizes stats collecting through plugins, with `exometer` and `folsom` being the major plugins. Read about how to configure the system for exometer or folsom use in this README file.
+
+No other changes in this version.
+
 ### 1.1.0
 
 Rename `fuse_evt` → `fuse_event`. While this is not strictly a valid thing, since we break backwards compatibility, I hope no-one have begun using Fuse yet. As such, I decided to make this a minor bump instead.

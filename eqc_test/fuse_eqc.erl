@@ -550,7 +550,7 @@ load_sasl() ->
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),
   application:set_env(sasl, errlog_type, error),
-  application:start(sasl).
+  application:start(sasl),
   ok.
 
 pulse_instrument(File) ->

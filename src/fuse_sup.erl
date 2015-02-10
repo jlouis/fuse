@@ -17,11 +17,13 @@
 
 %% @doc Start the fuse supervisor
 %% @end
+-spec start_link() -> {ok, pid()}.
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ------
 %% @private
+-spec init(any()) -> any().
 init([]) ->
     {ok, { {rest_for_one, 5, 3600},
            [?CHILD(fuse_server, []),

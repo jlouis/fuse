@@ -1,5 +1,8 @@
 PROJECT = fuse
 
+ERLC_OPTS := +debug_info +warn_export_all +warn_export_vars \
+	+warn_shadow_vars +warn_obsolete_guard
+
 .DEFAULT_GOAL := app
 
 app_eqc: ERLC_OPTS += -DEQC_TESTING

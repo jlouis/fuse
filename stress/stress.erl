@@ -14,6 +14,7 @@ setup() ->
 	application:set_env(sasl, errlog_type, error),
 	error_logger:tty(false),
 	application:start(sasl),
+	application:start(bear),
 	application:start(folsom),
 	application:start(fuse),
 	ok.

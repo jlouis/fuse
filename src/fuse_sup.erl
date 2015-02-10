@@ -23,7 +23,6 @@ start_link() ->
 
 %% ------
 %% @private
--spec init(any()) -> any().
 init([]) ->
     {ok, { {rest_for_one, 5, 3600},
            [?CHILD(fuse_server, []),

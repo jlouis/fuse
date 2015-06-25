@@ -1,6 +1,6 @@
 %%% @author Thomas Arts 
 %%% @copyright (C) 2014, Quviq AB
-%%% @doc Showing that the fuse_time module behaves as expected
+%%% @doc Showing that the fuse_time_mock module behaves as expected
 %%%
 %%% @end
 %%% Created : 26 Mar 2014 by Thomas Arts <thomas.arts@quviq.com>
@@ -13,23 +13,24 @@
 -include_lib("eqc/include/eqc_statem.hrl").
 
 initial_state() ->
-  {0,0,0}.
+  -10000.
 
-timestamp_command(_S) -> 
-  {call, fuse_time_mock, timestamp, []}.
+monotonic_time() ->
+    fuse_time_mock:monotonic_time().
+    
+monotonic_time_args(_S) -> [].
 
-timestamp_next(_S, NewTime, []) ->
+monotonic_time_next(_S, NewTime, []) ->
   NewTime.
 
-timestamp_post(S, [], NewTime) ->
+monotonic_time_post(S, [], NewTime) ->
   S =< NewTime.
 
-time_inc() ->
-    ?LET(N, choose(0, 1000*1000),
-        N+1).
-
-elapse_time_command(_S) ->
-  {call, fuse_time_mock, elapse_time, [time_inc()]}.
+elapse_time(Inc) ->
+    fuse_time_mock:elapse_time(Inc).
+    
+elapse_time_args(_S) ->
+    [?LET(N, choose(0, 1000*1000*1000), N+1)].
 
 elapse_time_post(S, [_], NewTime) ->
   less(S,NewTime).
@@ -37,11 +38,10 @@ elapse_time_post(S, [_], NewTime) ->
 less(X,Y) when X=<Y -> true;
 less(X,Y) -> {X,'>=',Y}.
   
-
 prop_seq() ->
   ?FORALL(Cmds, commands(?MODULE),
 	  begin
-	    fuse_time_mock:start({0,0,0}),
+	    fuse_time_mock:start(0),
 	    {H, S, Res} = run_commands(?MODULE,Cmds),
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)
@@ -50,7 +50,7 @@ prop_seq() ->
 prop_par() ->
   ?FORALL(Cmds, parallel_commands(?MODULE),
 	  begin
-	    fuse_time_mock:start({0,0,0}),
+	    fuse_time_mock:start(-10000),
 	    {H, S, Res} = run_parallel_commands(?MODULE,Cmds),
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)

@@ -70,12 +70,12 @@ simple_test(_Config) ->
 	receive
 		{?FUSE_SIMPLE, blown} -> ok
 	after 1000 ->
-			ct:fail(timeout_eh)
+	    ct:fail(timeout_eh)
 	end,
 	receive
 		{set_alarm, {?FUSE_SIMPLE, fuse_blown}} -> ok
 	after 61 * 1000 ->
-			ct:fail(timeout_ah)
+	    ct:fail(timeout_ah)
 	end,
 	ct:sleep(600),
 	ok = fuse:ask(?FUSE_SIMPLE, sync),

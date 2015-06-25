@@ -1,6 +1,6 @@
 language: erlang
 
-script: "make all; make tests"
+script: "rebar3 ct"
 otp_release:
    - R16B03-1
    - 17.0

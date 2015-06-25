@@ -9,5 +9,9 @@
 		sasl
 	]},
 	{mod, {fuse_app, []}},
-	{env, []}
+	{env, []},
+	
+	{contributors, ["Jesper Louis Andersen", "Thomas Arts"]},
+	{licenses, ["MIT"]},
+	{links, [{"Github", "https://github.com/jlouis/fuse"}]}
 ]}.

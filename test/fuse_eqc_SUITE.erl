@@ -12,7 +12,8 @@
 %% Tests.
 -export([
 	fuse_time_seq/1,
-	fuse_time_par/1
+	fuse_time_par/1,
+	fuse_monitor_component/1
 ]).
 
 -ifdef(EQC).
@@ -63,3 +64,5 @@ fuse_time_seq(_Config) ->
 
 fuse_time_par(_Config) ->
 	qc(fuse_time_eqc:prop_par()).
+
+fuse_monitor_component(_Config) -> qc(mon_eqc:prop_component_correct()).

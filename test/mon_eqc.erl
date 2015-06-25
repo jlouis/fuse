@@ -1,9 +1,11 @@
 -module(mon_eqc).
 
+-compile(export_all).
+
+-ifdef(EQC).
+
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
-
--compile(export_all).
 
 -define(TAB, fuse_state).
 
@@ -180,3 +182,5 @@ take(N, L) when length(L) < N -> L;
 take(N, L) ->
 	{T, _} = lists:split(N, L),
 	T.
+
+-endif.

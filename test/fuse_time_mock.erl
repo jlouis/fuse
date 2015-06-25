@@ -8,8 +8,10 @@
 %%%-------------------------------------------------------------------
 -module(fuse_time_mock).
 
+-ifdef(EQC).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("pulse_otp/include/pulse_otp.hrl").
+-endif.
 
 -export([start/1, init/2]).
 -export([monotonic_time/0,elapse_time/1]).

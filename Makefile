@@ -1,5 +1,8 @@
 PROJECT = fuse
 
+rebar3-compile:
+	rebar3 compile | sed -e 's|_build/default/lib/fuse/||'
+
 ERLC_OPTS := +debug_info +warn_export_all +warn_export_vars \
 	+warn_shadow_vars +warn_obsolete_guard
 

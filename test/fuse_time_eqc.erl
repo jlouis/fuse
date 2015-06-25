@@ -8,7 +8,7 @@
 -module(fuse_time_eqc).
 -compile(export_all).
 
--ifdef(EQC).
+-ifdef(EQC_TESTING).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 

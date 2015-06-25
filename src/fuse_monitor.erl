@@ -8,9 +8,9 @@
 -endif.
 
 -ifdef(EQC_TESTING).
--define(SEND_AFTER, fuse_time:send_after).
+-define(SEND_AFTER, fuse_time_mock:send_after).
 -else.
--define(SEND_AFTER, erlang:send_after).
+-define(SEND_AFTER, fuse_time:send_after).
 -endif.
 
 -define(TAB, fuse_state).

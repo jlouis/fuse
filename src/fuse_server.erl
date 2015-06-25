@@ -38,13 +38,9 @@
 }).
 
 -ifdef(EQC_TESTING).
--define(OS_TIMESTAMP, fuse_time:timestamp()).
--define(SEND_AFTER, fuse_time:send_after).
--define(CANCEL_TIMER, fuse_time:cancel_timer).
+-define(TIME, fuse_time_mock).
 -else.
--define(OS_TIMESTAMP, os:timestamp()).
--define(SEND_AFTER, erlang:send_after).
--define(CANCEL_TIMER, erlang:cancel_timer).
+-define(TIME, fuse_time).
 -endif.
 
 %% ------
@@ -152,7 +148,7 @@ handle_call({reset, Name}, _From, State) ->
 	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};
 handle_call({melt, Name}, _From, State) ->
-	Now = ?OS_TIMESTAMP,
+	Now = ?TIME:monotonic_time(),
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
 	case Res of
 	  ok ->
@@ -211,7 +207,8 @@ handle_reset(Name, State, ResetType) ->
 	end.
 
 init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
-    #fuse { name = Name, intensity = MaxR, period = MaxT, heal_time = Reset }.
+    NativePeriod = ?TIME:convert_time_unit(MaxT, milli_seconds, native),
+    #fuse { name = Name, intensity = MaxR, period = NativePeriod, heal_time = Reset }.
 
 with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
     case lists:keytake(Name, #fuse.name, Fs) of
@@ -229,7 +226,7 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_
             {ok, NewF};
         _ ->
             blow(Fuse),
-            TRef = add_reset_timer(Name, Heal),
+            TRef = ?TIME:send_after(Heal, self(), {reset, Name}),
             {ok, NewF#fuse { timer_ref = TRef }}
     end.
 
@@ -241,24 +238,8 @@ add_restart_([R|Restarts], Now, Period) ->
     end;
 add_restart_([], _, _) -> [].
     
-in_period(Time, Now, Period) ->
-    case difference(Time, Now) of
-        T when T > Period -> false;
-        _ -> true
-    end.
-
-%%
-%% Time = {MegaSecs, Secs, MicroSecs} (NOTE: MicroSecs is ignored)
-%% Calculate the time elapsed in seconds between two timestamps.
-%% If MegaSecs is equal just subtract Secs.
-%% Else calculate the Mega difference and add the Secs difference,
-%% note that Secs difference can be negative, e.g.
-%%      {827, 999999, 676} diff {828, 1, 653753} == > 2 secs.
-%%
-difference({TimeM, TimeS, _}, {CurM, CurS, _}) when CurM > TimeM ->
-    ((CurM - TimeM) * 1000000) + (CurS - TimeS);
-difference({_, TimeS, _}, {_, CurS, _}) ->
-    CurS - TimeS.
+in_period(Time, Now, Period) when (Now - Time) > Period -> false;
+in_period(_, _, _) -> true.
 
 blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}),
@@ -277,8 +258,5 @@ install_metrics(#fuse { name = N }) ->
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->
-    _ = ?CANCEL_TIMER(TRef), %% For effect only
+    _ = ?TIME:cancel_timer(TRef),
     F#fuse { timer_ref = none }.
-
-add_reset_timer(Name, HealTime) ->
-    ?SEND_AFTER(HealTime, self(), {reset, Name}).

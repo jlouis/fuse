@@ -1,2 +1,3 @@
 app:
-	$(MAKE) -C .. app
+	$(MAKE) -C .. rebar3-compile
+

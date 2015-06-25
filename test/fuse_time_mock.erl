@@ -8,17 +8,19 @@
 %%%-------------------------------------------------------------------
 -module(fuse_time_mock).
 
--ifdef(EQC).
+-ifdef(EQC_TESTING).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("pulse_otp/include/pulse_otp.hrl").
 -endif.
 
 -export([start/1, init/2]).
 -export([monotonic_time/0,elapse_time/1]).
+-export([convert_time_unit/3]).
 -export([send_after/3, cancel_timer/1]).
 
 send_after(_When, _Target, _Msg) -> make_ref().
 cancel_timer(_Ref) -> 0.
+convert_time_unit(X, _, _) -> X.
 
 monotonic_time() ->
   ?MODULE ! {monotonic_time, self()},

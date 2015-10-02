@@ -10,6 +10,7 @@
 	ask/2,
 	install/2,
 	melt/1,
+	remove/1,
 	reset/1,
 	run/3
 ]).
@@ -68,6 +69,14 @@ reset(Name) ->
   when Name :: atom().
 melt(Name) ->
 	fuse_server:melt(Name).
+
+%% @doc remove/1 removs a fuse
+%% Given `remove(N)' this removes the fuse under the name `N'. This fuse will no longer exist.
+%% @end
+-spec remove(Name) -> ok
+  when Name :: atom().
+remove(Name) ->
+    fuse_server:remove(Name).
 
 %% Internal functions
 %% -----------------------

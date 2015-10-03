@@ -16,6 +16,7 @@
     ask/2,
     install/2,
     melt/1,
+    remove/1,
     reset/1,
     run/3]).
 
@@ -96,7 +97,14 @@ reset(Name) ->
     when Name :: atom().
 melt(Name) ->
 	gen_server:call(?MODULE, {melt, Name}).
-    
+
+%% @doc remove/1 removes the fuse
+%% The documentation is (@see fuse:remove/1)
+%% @end
+-spec remove(atom()) -> ok | {error, not_found}.
+remove(Name) ->
+	gen_server:call(?MODULE, {remove, Name}).
+
 %% sync/0 syncs the server. For internal use only in tests
 %% @private
 sync() ->
@@ -147,6 +155,9 @@ handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs 
 handle_call({reset, Name}, _From, State) ->
 	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};
+handle_call({remove, Name}, _From, State) ->
+	{Reply, State2} = handle_remove(Name, State),
+	{reply, Reply, State2};
 handle_call({melt, Name}, _From, State) ->
 	Now = ?TIME:monotonic_time(),
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
@@ -165,7 +176,7 @@ handle_call(q_melts, _From, #state { fuses = Fs } = State) ->
         {reply, [{N, Ms} || #fuse { name = N, melt_history = Ms } <- Fs], State};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
-	
+
 %% @private
 handle_cast(_M, State) ->
 	{noreply, State}.
@@ -206,6 +217,14 @@ handle_reset(Name, State, ResetType) ->
 	  not_found -> {{error, not_found}, State2}
 	end.
 
+handle_remove(Name, #state { fuses = Fs } = State) ->
+    case lists:keytake(Name, #fuse.name, Fs) of
+        false -> {{error, not_found}, State};
+        {value, F, OtherFs} ->
+            delete(F),
+            {ok, State#state { fuses = OtherFs }}
+    end.
+
 init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
     NativePeriod = ?TIME:convert_time_unit(MaxT, milli_seconds, native),
     #fuse { name = Name, intensity = MaxR, period = NativePeriod, heal_time = Reset }.
@@ -237,7 +256,7 @@ add_restart_([R|Restarts], Now, Period) ->
         false -> []
     end;
 add_restart_([], _, _) -> [].
-    
+
 in_period(Time, Now, Period) when (Now - Time) > Period -> false;
 in_period(_, _, _) -> true.
 
@@ -249,6 +268,11 @@ blow(#fuse { name = Name }) ->
 fix(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, ok}),
     fuse_event:notify({Name, ok}),
+    ok.
+
+delete(#fuse { name = Name }) ->
+    ets:delete(?TAB, Name),
+    fuse_event:notify({Name, removed}),
     ok.
 
 install_metrics(#fuse { name = N }) ->

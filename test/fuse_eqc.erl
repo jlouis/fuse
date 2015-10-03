@@ -61,7 +61,7 @@ g_strategy() ->
 %% g_refresh()/0 generates a refresh setting.
 g_refresh() ->
     {reset, 60000}.
-    
+
 %% g_options() generates install options
 g_options() ->
     {g_strategy(), g_refresh()}.
@@ -80,7 +80,7 @@ initial_state() -> #state{}.
 %% at a later point than normally.
 elapse_time(N) ->
     fuse_time_mock:elapse_time(N).
-    
+
 elapse_time_args(_S) -> [g_time_inc()].
 
 elapse_time_next(#state { time = T } = State, _V, [N]) ->
@@ -202,7 +202,7 @@ reset_features(S, [Name], _V) ->
 %% Split into two variants
 ask_installed(Name) ->
     fuse:ask(Name, ?CONTEXT).
-    
+
 ask_installed_pre(S) -> has_fuses_installed(S).
 
 ask_installed_args(_S) -> [g_name()].
@@ -219,11 +219,11 @@ ask_installed_return(S, [Name]) ->
 
 ask(Name) ->
     fuse:ask(Name, ?CONTEXT).
-    
+
 ask_pre(S) -> has_fuses_installed(S).
 
 ask_args(_S) -> [g_name()].
-    
+
 ask_features(S, [Name], _V) ->
     case is_installed(Name, S) of
        true -> [{fuse_eqc, r15, ask_installed}];
@@ -245,7 +245,7 @@ ask_return(S, [Name]) ->
 %% ---------------------------------------------------------------
 run(Name, _Result, _Return, Fun) ->
     fuse:run(Name, Fun, ?CONTEXT).
-    
+
 run_pre(S) ->
     has_fuses_installed(S).
 
@@ -307,14 +307,14 @@ run_return(S, [Name, _Result, Return, _]) ->
 %% fuses which are installed, since we assume the interesting aspects affects these.
 melt_installed(Name) ->
     fuse:melt(Name).
-    
+
 melt_installed_pre(S) -> has_fuses_installed(S).
 
 melt_installed_args(_S) -> [g_name()].
 
 melt_installed_pre(S, [Name]) ->
     is_installed(Name, S).
-    
+
 melt_installed_next(#state { time = Ts } = S, _V, [Name]) ->
     M = val(record_melt(Name, Ts, S)),
     {_, NewState} =
@@ -365,8 +365,40 @@ melt_features(#state { time = Ts } = S, [Name], _V) ->
               [{fuse_eqc, r11, melt_installed_fuse}] ++ Features;
         false -> [{fuse_eqc, r12, melt_uninstalled_fuse}]
     end.
-        
+
 melt_return(_S, _) -> ok.
+
+%% remove/1 removes a fuse
+%% ---------------------------------------------------------------
+remove(Name) ->
+    fuse:remove(Name).
+
+%% Generate arguments to remove from a fuse that's actually installed vs
+%% fuses that are not.
+remove_args(#state { installed = Is } = _S) ->
+    frequency(
+      [ {20, ?LET(F, elements(Is), [element(1, F)])} || Is /= [] ] ++
+      [ {1, ?SUCHTHAT([F], [g_name()], lists:keymember(F, 1, Is) == false)} ]).
+
+remove_return(S, [Name]) ->
+    case is_installed(Name, S) of
+        true -> ok;
+        false -> {error, not_found}
+    end.
+
+%% Removing a fuse, removes it from the list of installed fuses.
+remove_next(#state{ installed = Is } = S, _V, [Name]) ->
+    case is_installed(Name, S) of
+        false -> S;
+        true ->
+            S#state { installed = lists:keydelete(Name, 1, Is) }
+     end.
+
+remove_features(S, [Name], _V) ->
+    case is_installed(Name, S) of
+        false -> [{fuse_eqc, r17, remove_uninstalled_fuse}];
+        true -> [{fuse_eqc, r18, remove_installed_fuse}]
+    end.
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
@@ -378,7 +410,8 @@ weight(_, melt) -> 1;
 weight(_, melt_installed) -> 40;
 weight(_, fuse_reset) -> 100;
 weight(_, ask) -> 1;
-weight(_, ask_installed) -> 30.
+weight(_, ask_installed) -> 30;
+weight(_, remove) -> 1.
 
 %%% PROPERTIES
 %% ---------------------------------------------------------------
@@ -412,7 +445,7 @@ prop_model_par() ->
                    fun() -> ok end
            end,
     fault_rate(1, 40,
-     ?LET(Shrinking, parameter(shrinking, false), 
+     ?LET(Shrinking, parameter(shrinking, false),
     ?FORALL(Cmds, more_commands(2, parallel_commands(?MODULE)),
       ?ALWAYS(if not Shrinking -> 1;
                      Shrinking -> 20
@@ -478,13 +511,13 @@ valid_opts({{standard, K, R}, {reset, T}})
     true;
 valid_opts(_) ->
     false.
-    
+
 melt_state(Name, S) ->
     count_state(fuse_intensity(Name, S) - count_melts(Name, S)).
 
 is_blown(Name, #state { blown = BlownFuses }) ->
     lists:member(Name, BlownFuses).
-    
+
 fuse_intensity(Name, #state { installed = Inst }) ->
     {Name, Count, _} = lists:keyfind(Name, 1, Inst),
     Count.
@@ -526,7 +559,7 @@ expire_melts(Period, Who, #state { time = Now, melts = Ms } = S) ->
 
 clear_blown(Name, #state { blown = Rs } = S) ->
     S#state { blown = [N || N <- Rs, N /= Name] }.
-    
+
 clear_melts(Name, #state { melts = Ms } = S) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
 
@@ -547,7 +580,7 @@ t(pulse, {T, Unit}) ->
     eqc:testing_time(eval_time(T, Unit), x_prop_model_pulse());
 t(pulse, N) when is_integer(N) ->
     eqc:numtests(N, x_prop_model_pulse()).
-    
+
 
 eval_time(N, h)   -> eval_time(N*60, min);
 eval_time(N, min) -> eval_time(N*60, sec);
@@ -562,7 +595,7 @@ rv(What, T) ->
 pulse_instrument() ->
   [ pulse_instrument(File) || File <- filelib:wildcard("../src/*.erl") ++ filelib:wildcard("../eqc_test/*.erl") ],
   load_sasl().
-  
+
 load_sasl() ->
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),

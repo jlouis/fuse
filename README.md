@@ -204,20 +204,13 @@ Fuse is written with two kinds of tests. First of all, it uses a set of Common T
 
 To run the standard tests, execute:
 
-	make tests
+	rebar3 ct
 	
 To run the EQC tests, you have to
 
-	cd eqc_test
-	make console
+	rebar3 as eqc ct
 	
-And then in the Erlang console, you can execute
-
-	make:all([load]).
-	error_logger:tty(false). % Shut up the error logger while running tests
-	eqc:module(fuse_eqc),
-	…
-	fuse_eqc:r(par, {3, min}).
+This compiles the fuse system with mocked time so the EQC system controls time. Then it runs the models against the code base. For manual testing, you need to make the same compilation by setting the flag `EQC_TESTING`.
 
 I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
 

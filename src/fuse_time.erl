@@ -1,3 +1,5 @@
+%%% @doc Handles time compatibility for the system
+%%% @private
 -module(fuse_time).
 -compile(nowarn_deprecated_function).
 

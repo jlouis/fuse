@@ -24,6 +24,10 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.1.0
+
+Add the ability to remove a fuse. Work by Zeeshan Lakhani / Basho.
+
 ### 2.0.0
 
 This major release breaks backwards compatibility in statistics. Cian Synott wrote code which generalizes stats collecting through plugins, with `exometer` and `folsom` being the major plugins. Read about how to configure the system for exometer or folsom use in this README file.
@@ -70,6 +74,7 @@ List of people who have made contributions to the project of substantial size:
 * Cian Synnott
 * Jesper Louis Andersen
 * Thomas Arts
+* Zeeshan Lakhani
 
 # Documentation
 

@@ -15,6 +15,11 @@
 	run/3
 ]).
 
+-export([
+	circuit_enable/1,
+	circuit_disable/1
+]).
+
 -type fuse_context() :: sync | async_dirty.
 -type fuse_strategy() :: {standard, pos_integer(), pos_integer()}.
 -type fuse_refresh() :: {reset, pos_integer()}.
@@ -35,6 +40,25 @@
 install(Name, Options) ->
     options_ok(Options),
     fuse_server:install(Name, Options).
+
+%% @doc circuit_disable/1 administratively disable a circuit
+%% This function is intended to be used administratively, when you want to break the fuse
+%% before you do administration on the service which the fuse protects. This can be used to
+%% e.g., carry out database maintenance. After maintenance, the administrator can reenable
+%% the circuit again.
+%% @end.
+-spec circuit_disable(Name) -> ok
+   when Name :: atom().
+circuit_disable(Name) ->
+    fuse_server:circuit(Name, disable).
+
+%% @doc circuit_enable/1 administratively (re-)enables a fuse
+%% This call is used to reenable a disabled circuit again. Always returns ok and is idempotent.
+%% @end
+-spec circuit_enable(Name) -> ok
+  when Name :: atom().
+circuit_enable(Name) ->
+    fuse_server:circuit(Name, enable).
 
 %% @doc run/2 runs a thunk under a given fuse
 %% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'

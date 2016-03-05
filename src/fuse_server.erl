@@ -20,6 +20,11 @@
     reset/1,
     run/3]).
 
+%% Administrative API
+-export([
+    circuit/2
+]).
+
 %% Callbacks
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
@@ -35,7 +40,8 @@
 	period :: integer(),
 	heal_time :: integer(),
 	melt_history = [],
-	timer_ref = none
+	timer_ref = none,
+	enabled = true
 }).
 
 -ifdef(EQC_TESTING).
@@ -43,6 +49,8 @@
 -else.
 -define(TIME, fuse_time).
 -endif.
+
+%% -- API -----------------------------------------------------
 
 %% ------
 %% @doc Start up the manager server for the fuse system
@@ -90,6 +98,12 @@ ask_(Name) ->
 reset(Name) ->
 	gen_server:call(?MODULE, {reset, Name}).
 
+%% @doc circuit/2 is used to manually override the fuse state
+%% @end
+-spec circuit(atom(), enable | disable) -> ok.
+circuit(Name, Switch) ->
+	gen_server:call(?MODULE, {circuit, Name, Switch}).
+
 %% @doc melt/2 melts the fuse at a given point in time
 %% For documentation, (@see fuse:melt/2)
 %% @end
@@ -135,6 +149,8 @@ run(Name, Func, Context) ->
           {error, Reason}
     end.
 
+%% -- CALLBACKS --------------------------------------------
+
 %% @private
 init([]) ->
 	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
@@ -145,13 +161,19 @@ handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs 
         case lists:keytake(Name, #fuse.name, Fs) of
             false ->
                 install_metrics(Fuse),
-                fix(Fuse);
+                fix(Fuse),
+                {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
             {value, OldFuse, _Otherfuses} ->
                 fix(OldFuse),
                 _ = reset_timer(OldFuse), %% For effect only
-                ok
-        end,
-        {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
+                %% Transplant the enabled-state from the old fuse
+                Enabled = OldFuse#fuse.enabled,
+                {reply, ok, State#state {
+                    fuses = lists:keystore(Name, #fuse.name, Fs, Fuse#fuse { enabled = Enabled }) }}
+        end;
+handle_call({circuit, Name, Switch}, _From, State) ->
+	{Reply, State2} = handle_circuit(Name, Switch, State),
+	{reply, Reply, State2};
 handle_call({reset, Name}, _From, State) ->
 	{Reply, State2} = handle_reset(Name, State, reset),
 	{reply, Reply, State2};
@@ -174,6 +196,8 @@ handle_call(sync, _F, State) ->
 	{reply, ok, State};
 handle_call(q_melts, _From, #state { fuses = Fs } = State) ->
         {reply, [{N, Ms} || #fuse { name = N, melt_history = Ms } <- Fs], State};
+handle_call(q_disabled, _From, #state { fuses = Fs } = State) ->
+	{reply, [Name || #fuse { name = Name, enabled = false } <- Fs], State};
 handle_call(_M, _F, State) ->
 	{reply, {error, unknown}, State}.
 
@@ -217,6 +241,27 @@ handle_reset(Name, State, ResetType) ->
 	  not_found -> {{error, not_found}, State2}
 	end.
 
+handle_circuit(Name, Switch, State) ->
+    Fn = fun(#fuse { enabled = En } = F) ->
+        case Switch of
+            enable when En -> {ok, F};
+            enable ->
+                F1 = F#fuse { enabled = true },
+                fix(F1),
+                NewF = reset_timer(F1),
+                {ok, NewF#fuse { melt_history = [] }};
+            disable when not En -> {ok, F};
+            disable ->
+                blow(F),
+                {ok, F#fuse { enabled = false }}
+        end
+    end,
+    {Res, State2} = with_fuse(Name, State, Fn),
+    case Res of
+        ok -> {ok, State2};
+        not_found -> {{error, not_found}, State2}
+    end.
+
 handle_remove(Name, #state { fuses = Fs } = State) ->
     case lists:keytake(Name, #fuse.name, Fs) of
         false -> {{error, not_found}, State};
@@ -249,7 +294,6 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_
             {ok, NewF#fuse { timer_ref = TRef }}
     end.
 
-
 add_restart_([R|Restarts], Now, Period) ->
     case in_period(R, Now, Period) of
         true -> [R|add_restart_(Restarts, Now, Period)];
@@ -260,11 +304,13 @@ add_restart_([], _, _) -> [].
 in_period(Time, Now, Period) when (Now - Time) > Period -> false;
 in_period(_, _, _) -> true.
 
+blow(#fuse { enabled = false }) -> ok;
 blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}),
     fuse_event:notify({Name, blown}),
     ok.
 
+fix(#fuse { enabled = false }) -> ok;
 fix(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, ok}),
     fuse_event:notify({Name, ok}),

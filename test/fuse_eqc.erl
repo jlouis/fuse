@@ -36,6 +36,9 @@ g_atom() ->
 g_name() ->
       fault(g_atom(), elements(fuses())).
 
+g_disabled_name(S) ->
+    elements(S#state.disabled).
+
 %% Thomas says this is a bad idea, since we can rule out the name by a precondition (_pre/3)
 %% As a result we stopped using functions like these.
 %% g_installed(S) ->
@@ -154,7 +157,7 @@ install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
             T = {Name, Count, Period},
             clear_melts(Name,
                 clear_blown(Name,
-                    remove_disabled(Name, S#state { installed = lists:keystore(Name, 1, Is, T) })))
+                    S#state { installed = lists:keystore(Name, 1, Is, T) }))
     end.
 
 install_features(S, [Name, Opts], _R) ->
@@ -191,7 +194,7 @@ circuit_disable_return(S, [Name]) ->
     end.
 
 circuit_disable_next(S, _, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(Name, S) andalso not is_disabled(Name, S) of
         false -> S;
         true ->
             clear_blown(Name,
@@ -213,8 +216,11 @@ circuit_enable(Name) ->
 circuit_enable_pre(S) ->
     has_fuses_installed(S).
 
-circuit_enable_args(_S) ->
-    [g_name()].
+circuit_enable_args(S) ->
+    Fuse = frequency(
+        [{10, g_disabled_name(S)} || has_disabled(S)] ++
+        [{1, g_name()}]),
+    [Fuse].
 
 circuit_enable_return(S, [Name]) ->
     case is_installed(Name, S) of
@@ -223,9 +229,12 @@ circuit_enable_return(S, [Name]) ->
     end.
 
 circuit_enable_next(S, _, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(Name, S) andalso is_disabled(Name, S) of
        false -> S;
-       true -> remove_disabled(Name, S)
+       true ->
+           clear_blown(Name,
+             clear_melts(Name,
+               remove_disabled(Name, S)))
     end.
 
 circuit_enable_features(S, [Name], _V) ->
@@ -260,7 +269,7 @@ reset_next(S, _V, [Name]) ->
         true ->
           clear_blown(Name,
             clear_melts(Name,
-              remove_disabled(Name, S)))
+              S))
      end.
 
 reset_features(S, [Name], _V) ->
@@ -494,8 +503,8 @@ weight(_, fuse_reset) -> 100;
 weight(_, ask) -> 1;
 weight(_, ask_installed) -> 30;
 weight(_, remove) -> 1;
-weight(_, circuit_disable) -> 0;
-weight(_, circuit_enable) -> 0.
+weight(_, circuit_disable) -> 1;
+weight(_, circuit_enable) -> 1.
 
 %%% PROPERTIES
 %% ---------------------------------------------------------------
@@ -604,6 +613,8 @@ is_blown(Name, #state { blown = BlownFuses }) ->
 
 is_disabled(Name, #state { disabled = Ds }) ->
     lists:member(Name, Ds).
+
+has_disabled(#state { disabled = Ds }) -> Ds /= [].
 
 fuse_intensity(Name, #state { installed = Inst }) ->
     {Name, Count, _} = lists:keyfind(Name, 1, Inst),

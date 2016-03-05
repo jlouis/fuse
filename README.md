@@ -24,6 +24,10 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.2.0
+
+Add `fuse:circuit_disable/1` and `fuse:circuit_enable/1`.
+
 ### 2.1.0
 
 Add the ability to remove a fuse. Work by Zeeshan Lakhani / Basho.
@@ -144,6 +148,18 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 	end,
 
 this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs. As with `ask/1`, you must supply your desired context.
+
+# Administrative commands
+
+An administrator can manually disable/reenable fuses through the following commands:
+
+	ok = fuse:circuit_disable(Name),
+	…
+	ok = fuse:circuit_enable(Name),
+	
+When you disable a circuit, you blow the fuse until you enable the circuit again.
+
+The interaction rules for disables/enables is that they dominate every other command except the call to `remove/1`. That is, even reinstalling an already installed fuse will not reenable it. The only way is to either call `fuse:circuit_enable/1` or by first `fuse:remove/1`'ing the fuse and then executing an `install/1` command.
 
 # Monitoring fuse state
 

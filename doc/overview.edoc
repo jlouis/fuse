@@ -1,0 +1,11 @@
+@author Jesper Louis Andersen <jesper.louis.andersen@gmail.com>
+@copyright 2014–2016 Shopgun Aps
+@title fuse - a circuit breaker for Erlang
+@version 2.2.0
+
+@doc
+
+This application is an implementation of a circuit breaker system for Erlang.
+
+@end
+

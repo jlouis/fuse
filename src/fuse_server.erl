@@ -131,10 +131,12 @@ q_melts() ->
 %% @doc Documentation is (@see fuse:run/3)
 %% @end
 %% @private
--spec run(Name, fun(() -> {ok, Result} | {melt, Result}), fuse:fuse_context()) -> {ok, Result} | blown | {error, not_found}
+-spec run(Name, fun(() -> {ok, Result} | {melt, Result}), fuse:fuse_context()) ->
+	{ok, Result} | blown | {error, not_found}
   when
     Name :: atom(),
     Result :: any().
+
 run(Name, Func, Context) ->
     case ask(Name, Context) of
         blown -> blown;

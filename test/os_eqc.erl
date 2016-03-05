@@ -7,6 +7,8 @@
 
 -module(os_eqc).
 
+-ifdef(EQC_TESTING).
+
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 
@@ -39,3 +41,5 @@ prop_os_par() ->
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)
 	  end).
+
+-endif.

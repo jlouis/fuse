@@ -42,10 +42,11 @@ install(Name, Options) ->
     fuse_server:install(Name, Options).
 
 %% @doc circuit_disable/1 administratively disable a circuit
-%% This function is intended to be used administratively, when you want to break the fuse
+%% <p>This function is intended to be used administratively, when you want to break the fuse
 %% before you do administration on the service which the fuse protects. This can be used to
 %% e.g., carry out database maintenance. After maintenance, the administrator can reenable
-%% the circuit again.
+%% the circuit again.</p>
+%% <p>Disabling a circuit dominates every other operation, except `remove/1`.</p>
 %% @end.
 -spec circuit_disable(Name) -> ok
    when Name :: atom().
@@ -53,7 +54,9 @@ circuit_disable(Name) ->
     fuse_server:circuit(Name, disable).
 
 %% @doc circuit_enable/1 administratively (re-)enables a fuse
-%% This call is used to reenable a disabled circuit again. Always returns ok and is idempotent.
+%% <p>This call is used to reenable a disabled circuit again. Always returns ok and is idempotent.</p>
+%% <p>Use this command at the point in time where you are done with administrative fixes and want
+%% to resume normal operation of the fuse.</p>
 %% @end
 -spec circuit_enable(Name) -> ok
   when Name :: atom().

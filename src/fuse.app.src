@@ -11,7 +11,7 @@
 	{mod, {fuse_app, []}},
 	{env, []},
 	
-	{contributors, ["Jesper Louis Andersen", "Thomas Arts"]},
+	{maintainers, ["Jesper Louis Andersen"]},
 	{licenses, ["MIT"]},
 	{links, [{"Github", "https://github.com/jlouis/fuse"}]}
 ]}.

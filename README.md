@@ -255,6 +255,12 @@ QuickCheck allows us to test for requirements of a system. This essentially test
     R15 - Ask on an installed fuse
     R16 - Ask on an uninstalled fuse
 
+    Group circuitry:
+    R17 - Disable an installed fuse
+    R18 - Disable an uninstalled fuse
+    R19 - Reenable an installed fuse
+    R20 - Reenable an uninstalled fuse
+    R21 - Melting a disabled fuse
 
 ## EQC Test harness features:
 

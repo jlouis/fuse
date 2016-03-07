@@ -1,5 +1,5 @@
 %%% The fuse_eqc module implements a Quickcheck model for the Fuse main gen_server.
--module(fuse_eqc).
+-module(fuse_statem_eqc).
 -compile(export_all).
 
 -ifdef(EQC_TESTING).

@@ -35,9 +35,12 @@ api_spec() ->
 -define(Q, 10000000000000000000).
 -define(EPSILON, 0.000001).
 
+g_uniform_real() ->
+    ?LET(K, choose(1,?Q-1), K / ?Q).
+
 g_split_float(Pivot) ->
    frequency([
-       {10, ?LET(K, choose(1,?Q - 1), K / ?Q)},
+       {10, g_uniform_real() },
        {10, Pivot - ?EPSILON },
        {10, Pivot + ?EPSILON }
    ]).

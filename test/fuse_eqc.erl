@@ -23,11 +23,11 @@
 
 api_spec() ->
     #api_spec {
-    	language = erlang,
-    	modules = [
-    		#api_module {
-    			name = fuse_rand,
-    			functions = [#api_fun { name = uniform, arity = 0 } ]
+        language = erlang,
+        modules = [
+            #api_module {
+                name = fuse_rand,
+                functions = [#api_fun { name = uniform, arity = 0 } ]
     }]}.
 
 %% API Generators
@@ -64,7 +64,7 @@ g_disabled_name(S) ->
 %% Thomas says this is a bad idea, since we can rule out the name by a precondition (_pre/3)
 %% As a result we stopped using functions like these.
 %% g_installed(S) ->
-%%	fault(g_name(), oneof(installed_names(S))).
+%%    fault(g_name(), oneof(installed_names(S))).
 
 %% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
@@ -75,13 +75,17 @@ g_neg_int() ->
 %% reject incorrect strategies.
 g_strategy() ->
     fault(
-    	{frequency([
-    		{1, {g_atom(), int(), int()}},
-    		{1, {standard, g_neg_int(), int()}},
-    		{1, {standard, int(), g_neg_int()}},
-    		{1, {standard, int(), int()}}
-    	])},
-    	{standard, choose(1, 2), choose(1, 3)}
+        {frequency([
+            {1, {g_atom(), int(), int()}},
+            {1, {standard, g_neg_int(), int()}},
+            {1, {standard, int(), g_neg_int()}},
+            {1, {standard, int(), int()}},
+            {1, {fault_injection, oneof([real(), int(), g_atom()]), int(), int()}}
+        ])},
+        oneof([
+            {standard, choose(1, 2), choose(1, 3)},
+            {fault_injection, g_uniform_real(), choose(1,2), choose(1,3)}
+        ])
     ).
 
 %% g_refresh()/0 generates a refresh setting.
@@ -160,10 +164,10 @@ fuse_reset_return(_S, [_Name]) -> ok.
 %% ---------------------------------------------------------------
 install(Name, Opts) ->
     try fuse:install(Name, Opts) of
-    	ok -> ok
+        ok -> ok
     catch
-    	error:badarg ->
-    		badarg
+        error:badarg ->
+            badarg
     end.
 
 install_args(_S) ->
@@ -412,10 +416,10 @@ run_features(#state { time = Ts } = S, [Name, melt, _, _], _R) ->
 run_return(S, [Name, _Result, Return, _]) ->
     case is_installed(Name, S) of
         true ->
-    	case is_blown(Name, S) orelse is_disabled(Name, S) of
-    	    false -> {ok, Return};
-    	    true -> blown
-    	end;
+        case is_blown(Name, S) orelse is_disabled(Name, S) of
+            false -> {ok, Return};
+            true -> blown
+        end;
         false ->
             {error, not_found}
     end.

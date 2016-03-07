@@ -2,8 +2,6 @@ language: erlang
 
 script: "make all; make tests"
 otp_release:
-   - R16B03-1
-   - 17.4
    - 18.2
 
 

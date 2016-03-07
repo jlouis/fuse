@@ -313,21 +313,26 @@ ask_pre(S) -> has_fuses_installed(S).
 
 ask_args(_S) -> [g_name()].
 
-ask_return(S, [Name]) ->
-    case is_installed(Name, S) of
-        true ->
-            case is_blown(Name, S) orelse is_disabled(Name, S) of
-                true -> blown;
-                false -> ok
-            end;
-        false ->
-            {error, not_found}
-    end.
+ask_callouts(S, [Name]) ->
+    ?MATCH(Res, ?APPLY(lookup, [Name])),
+    ?RET(Res).
 
 ask_features(S, [Name], _V) ->
     case is_installed(Name, S) of
        true -> [{fuse_eqc, r15, ask_installed}];
        false -> [{fuse_eqc, r16, ask_uninstalled}]
+    end.
+
+lookup_callouts(S, [Name]) ->
+    case lookup_fuse(Name, S) of
+        not_found ->
+            ?RET({error, not_found});
+        {standard, ok} ->
+            ?RET(ok);
+        {standard, blown} ->
+            ?RET(blown);
+        {_, disabled} ->
+            ?RET(blown)
     end.
 
 %%% run/1 runs a function (thunk) on the circuit breaker
@@ -572,6 +577,21 @@ valid_opts(_) ->
 melt_state(Name, S) ->
     count_state(fuse_intensity(Name, S) - count_melts(Name, S)).
 
+lookup_fuse(Name, #state { installed = Fs } = State) ->
+    case is_disabled(Name, State) of
+        true -> {Name, disabled};
+        false ->
+            case lists:keyfind(Name, 1, Fs) of
+                false -> not_found;
+                {_, #{ fuse_type := standard }} ->
+                    Blown = case is_blown(Name, State) of
+                        true -> blown;
+                        false -> ok
+                    end,
+                    {standard, Blown}
+            end
+    end.
+
 is_blown(Name, #state { blown = BlownFuses }) ->
     lists:member(Name, BlownFuses).
 
@@ -599,7 +619,9 @@ has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
 parse_opts({{standard, C, P},{reset, R}}) ->
-    #{ fuse_type => standard, count => C, period => P, reset => R }.
+    #{ fuse_type => standard, count => C, period => P, reset => R };
+parse_opts({{fault_injection, Rate, C, P}, {reset, Reset}}) ->
+    #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => Reset }.
 
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
     S#state { melts = [{Name, Ts} | Ms] }.

@@ -288,6 +288,8 @@ reset_features(S, [Name], _V) ->
 %%% ask/1 asks about the state of a fuse that exists
 %% ---------------------------------------------------------------
 %% Split into two variants
+
+%% ask/1 on a fuse which is known to be installed
 ask_installed(Name) ->
     fuse:ask(Name, ?CONTEXT).
 
@@ -300,12 +302,11 @@ ask_installed_pre(S, [Name]) -> is_installed(Name, S).
 ask_installed_features(_S, [_Name], _R) ->
     [{fuse_eqc, r15, ask_installed}].
 
-ask_installed_return(S, [Name]) ->
-    case is_blown(Name, S) orelse is_disabled(Name, S) of
-    	true -> blown;
-    	false -> ok
-    end.
+ask_installed_callouts(_S, [Name]) ->
+    ?MATCH(Res, ?APPLY(lookup, [Name])),
+    ?RET(Res).
 
+%% plain ask/1
 ask(Name) ->
     fuse:ask(Name, ?CONTEXT).
 
@@ -313,7 +314,7 @@ ask_pre(S) -> has_fuses_installed(S).
 
 ask_args(_S) -> [g_name()].
 
-ask_callouts(S, [Name]) ->
+ask_callouts(_S, [Name]) ->
     ?MATCH(Res, ?APPLY(lookup, [Name])),
     ?RET(Res).
 
@@ -322,6 +323,8 @@ ask_features(S, [Name], _V) ->
        true -> [{fuse_eqc, r15, ask_installed}];
        false -> [{fuse_eqc, r16, ask_uninstalled}]
     end.
+
+%% -- LOOKUP FUSE STATE (Internal) --------------------------------------------------------
 
 lookup_callouts(S, [Name]) ->
     case lookup_fuse(Name, S) of

@@ -85,7 +85,14 @@ ask_(Name) ->
           ok;
         blown ->
           _ = StatsPlugin:increment(Name, blown),
-          blown
+          blown;
+        {gradual, Rate} ->
+            case fuse_rand:uniform() of
+                K when K < Rate ->
+                    blown;
+                _ ->
+                    ok
+            end
     catch
         error:badarg ->
             {error, not_found}

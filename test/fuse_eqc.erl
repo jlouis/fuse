@@ -32,6 +32,17 @@ api_spec() ->
 
 %% API Generators
 
+-define(Q, 10000000000000000000).
+-define(EPSILON, 0.000001).
+
+g_split_float(Pivot) ->
+   frequency([
+       {10, ?LET(K, choose(1,?Q - 1), K / ?Q)},
+       {10, Pivot - ?EPSILON },
+       {10, Pivot + ?EPSILON }
+   ]).
+
+
 %% fuses/0 is the list of fuses we support in the model for testing purposes.
 fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
 
@@ -330,12 +341,18 @@ lookup_callouts(S, [Name]) ->
     case lookup_fuse(Name, S) of
         not_found ->
             ?RET({error, not_found});
+        {_, disabled} ->
+            ?RET(blown);
+        {_, blown} ->
+            ?RET(blown);
         {standard, ok} ->
             ?RET(ok);
-        {standard, blown} ->
-            ?RET(blown);
-        {_, disabled} ->
-            ?RET(blown)
+        {fault_injection, {gradual, X}} ->
+            ?MATCH(Rand, ?CALLOUT(dht_rand, uniform, [], g_split_float(X))),
+            case Rand < X of
+                true -> ?RET(blown);
+                false -> ?RET(ok)
+            end
     end.
 
 %%% run/1 runs a function (thunk) on the circuit breaker

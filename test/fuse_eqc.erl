@@ -189,8 +189,12 @@ install_features(S, [Name, Opts], _R) ->
     case valid_opts(Opts) of
         false -> [{fuse_eqc, r03, installing_invalid_fuse}];
         true ->
-            {{standard, Count, Period}, _} = Opts,
-            [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(Name, S)}}}]
+            case Opts of
+                {{standard, Count, Period}, _} ->
+                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(Name, S)}}}];
+                {{fault_injection, _, Count, Period}, _} ->
+                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(Name, S)}}}]
+            end
     end.
 
 install_return(_S, [_Name, Opts]) ->
@@ -596,7 +600,10 @@ is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
 
 %% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
-    when K > 0, R >= 0, T >= 0 ->
+  when K > 0, R >= 0, T >= 0 ->
+    true;
+valid_opts({{fault_injection, Rate, K, R}, {reset, T}})
+  when K > 0, R >= 0, T >= 0, is_float(Rate), 0 < Rate, Rate =< 1.0 ->
     true;
 valid_opts(_) ->
     false.
@@ -614,6 +621,12 @@ lookup_fuse(Name, #state { installed = Fs } = State) ->
                     Blown = case is_blown(Name, State) of
                         true -> blown;
                         false -> ok
+                    end,
+                    {standard, Blown};
+                {_, #{ fuse_type := fault_injection, rate := Rate }} ->
+                    Blown = case is_blown(Name, State) of
+                        true -> blown;
+                        false -> {gradual, Rate}
                     end,
                     {standard, Blown}
             end

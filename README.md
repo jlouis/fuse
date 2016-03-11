@@ -24,6 +24,10 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.3.0
+
+Support the `fault_injection` style fuses. These are fuses that fails automatically at a certain rate, say 1/500 requests, to test systems for robustness against faulty data.
+
 ### 2.2.0
 
 Add `fuse:circuit_disable/1` and `fuse:circuit_enable/1`.
@@ -93,7 +97,7 @@ To use fuse, you must first start the fuse application:
 but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must add a fuse into the system by *installing* a fuse description. This is usually done as part of the `application:start/1` callback:
 
 	Name = database_fuse
-	Strategy = {standard, MaxR, MaxT},
+	Strategy = {standard, MaxR, MaxT}, %% See below for types
 	Refresh = {reset, 60000},
 	Opts = {Strategy, Refresh},
 	fuse:install(Name, Opts).
@@ -148,6 +152,13 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 	end,
 
 this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs. As with `ask/1`, you must supply your desired context.
+
+# Fuse types
+
+There are a couple of different fuse types in the system:
+
+* Standard fuses, `{standard, MaxR, MaxT}`. These are fuses which tolerate `MaxR` melt attempts in a `MaxT` window, before they break down.
+* Fault injection fuses, `{fault_injection, Rate, MaxR, MaxT}`. This fuse type sets up a fault injection scheme where the fuse fails at rate `Rate`, an floating point value between `0.0`–`1.0`. If you enter, say `1 / 500` then roughly every 500th request will se a `blown` fuse, even if the fuse is okay. This can be used to add noise to the system and verify that calling systems support the failure modes appropriately. The values `MaxR` and `MaxT` works as in a standard fuse.
 
 # Administrative commands
 
@@ -213,11 +224,17 @@ The intended use is to evict waiters from queues in a system. Suppose you are qu
 
 # Speed
 
+## Standard fuses
+
 On a Lenovo Thinkpad running Linux 3.14.4 with a processor `Intel(R) Core(TM) i7-3720QM CPU @ 2.60GHz` (An Ivy Bridge) Erlang Release 17.0.1, we get a throughput of 2.1 million fuse queries per second by running the stress test in `stress/stress.erl`. This test also has linear speedup over all the cores. Lookup times are sub-microsecond, usually around the 0.5 ballpark.
 
 Running on a Q4 2013 Macbook Pro, OSX 10.9.2, 2 Ghz Intel Core i7 (Haswell) yields roughly the same speed.
 
 In practice, your system will be doing other things as well, but do note that the overhead of enabling a fuse is expected to be around 0.5μs in overhead.
+
+## Fault injecting fuses
+
+A fuse running with fault injection has the added caveat that it also makes a call to `rand:uniform()` which in turn will slow down the request rate. It is not expected to be a lot of slowdown, but it is mentioned here for the sake of transparency.
 
 # Tests
 
@@ -316,6 +333,8 @@ Development guided by properties leads to a code base which is considerably smal
 * EQC, and helpful hints by Thomas Arts, made it evident that the method used to draw timestamps was incorrect. A new model, where timestamps are generated inside the fuse system was much easier to test and verify.
 * EQC made it clear exactly how time is used in the system.
 * The EQC model suggested the introduction of the `Context` variable and the handling of different operating contexts. It also uncovered exactly how limited context handling leads to problems with lineariaziblity of the calls.
+* Switching between fuse types had numerous errors, removed by EQC.
+* The ability to administratively disable/enable fuses had weird interactions with operations which (re-)installed fuses into the system.
 
 The monitor model found the following:
 

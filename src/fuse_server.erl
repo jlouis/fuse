@@ -40,6 +40,7 @@
 	period :: integer(),
 	heal_time :: integer(),
 	melt_history = [],
+	ty = ok :: 'ok' | {gradual, float()},
 	timer_ref = none,
 	enabled = true
 }).
@@ -166,19 +167,19 @@ init([]) ->
 	{ok, #state{ }}.
 
 %% @private
-handle_call({install, #fuse { name = Name } = Fuse}, _From, #state { fuses = Fs } = State) ->
+handle_call({install, #fuse { name = Name } = F}, _From, #state { fuses = Fs } = State) ->
         case lists:keytake(Name, #fuse.name, Fs) of
             false ->
-                install_metrics(Fuse),
-                fix(Fuse),
-                {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, Fuse)}};
+                install_metrics(F),
+                fix(F),
+                {reply, ok, State#state { fuses = lists:keystore(Name, #fuse.name, Fs, F)}};
             {value, OldFuse, _Otherfuses} ->
-                fix(OldFuse),
+                EF = F#fuse { enabled = OldFuse#fuse.enabled },
+                fix(EF),
                 _ = reset_timer(OldFuse), %% For effect only
                 %% Transplant the enabled-state from the old fuse
-                Enabled = OldFuse#fuse.enabled,
                 {reply, ok, State#state {
-                    fuses = lists:keystore(Name, #fuse.name, Fs, Fuse#fuse { enabled = Enabled }) }}
+                    fuses = lists:keystore(Name, #fuse.name, Fs, EF) }}
         end;
 handle_call({circuit, Name, Switch}, _From, State) ->
 	{Reply, State2} = handle_circuit(Name, Switch, State),
@@ -279,9 +280,21 @@ handle_remove(Name, #state { fuses = Fs } = State) ->
             {ok, State#state { fuses = OtherFs }}
     end.
 
-init_state(Name, {{standard, MaxR, MaxT}, {reset, Reset}}) ->
-    NativePeriod = ?TIME:convert_time_unit(MaxT, milli_seconds, native),
-    #fuse { name = Name, intensity = MaxR, period = NativePeriod, heal_time = Reset }.
+init_state(Name, {{fault_injection, Rate, MR, MT}, {reset, Reset}}) ->
+    init_state(Name, {gradual, Rate}, MR, MT, {reset, Reset});
+init_state(Name, {{standard, MR, MT}, {reset, Reset}}) ->
+    init_state(Name, ok, MR, MT, {reset, Reset}).
+
+init_state(Name, Ty, MR, MT, {reset, Reset}) ->
+    NativePeriod = ?TIME:convert_time_unit(MT, milli_seconds, native),
+    #fuse {
+      name = Name,
+      intensity = MR,
+      period = NativePeriod,
+      heal_time = Reset,
+      ty = Ty
+    }.
+
 
 with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
     case lists:keytake(Name, #fuse.name, Fs) of
@@ -320,9 +333,9 @@ blow(#fuse { name = Name }) ->
     ok.
 
 fix(#fuse { enabled = false }) -> ok;
-fix(#fuse { name = Name }) ->
-    ets:insert(?TAB, {Name, ok}),
-    fuse_event:notify({Name, ok}),
+fix(#fuse { name = Name, ty = TY }) ->
+    ets:insert(?TAB, {Name, TY}),
+    fuse_event:notify({Name, TY}),
     ok.
 
 delete(#fuse { name = Name }) ->

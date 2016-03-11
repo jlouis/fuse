@@ -359,7 +359,7 @@ lookup_callouts(S, [Name]) ->
         {standard, ok} ->
             ?RET(ok);
         {fault_injection, {gradual, X}} ->
-            ?MATCH(Rand, ?CALLOUT(dht_rand, uniform, [], g_split_float(X))),
+            ?MATCH(Rand, ?CALLOUT(fuse_rand, uniform, [], g_split_float(X))),
             case Rand < X of
                 true -> ?RET(blown);
                 false -> ?RET(ok)
@@ -378,23 +378,30 @@ run_args(_S) ->
     ?LET({N, Result, Return}, {g_name(), elements([ok, melt]), int()},
         [N, Result, Return, function0({Result, Return})] ).
 
-run_next(S, _V, [_Name, ok, _, _]) -> S;
-run_next(#state { time = Ts } = S, _V, [Name, melt, _, _]) ->
-    case is_installed(Name, S) of
-            true ->
-                case is_blown(Name, S) of
-                    true -> S;
-                    false ->
-                        M = val(record_melt(Name, Ts, S)),
-                        {_, NewState} =
-                          bind(M, fun(S2) ->
-                          bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-                            record_melt_history(Name, S3) end) end),
-                        NewState
-                end;
-            false -> S
+run_callouts(_S, [Name, Result, Return, _Fun]) ->
+    ?MATCH(Res, ?APPLY(lookup, [Name])),
+    case Res of
+        {error, not_found} ->
+            ?RET({error, not_found});
+        blown ->
+            ?RET(blown);
+        ok ->
+            ?APPLY(run_melt, [Name, Result]),
+            ?RET({ok, Return})
     end.
 
+%% Track melting of fuses
+run_melt_next(S, _V, [_Name, ok]) -> S;
+run_melt_next(#state{ time = Ts } = S, _V, [Name, melt]) ->
+    M = val(record_melt(Name, Ts, S)),
+    {_, NewState} = 
+        bind(M, fun(S2) ->
+        bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
+            record_melt_history(Name, S3) end) end),
+    NewState.
+
+%% TODO: Fold this into the underlying helper functions
+%% of run_melt and lookup. This yields a simpler model.
 run_features(_S, [_Name, ok, _, _], _R) -> [{fuse_eqc, r07, run_ok_fuse}];
 run_features(#state { time = Ts } = S, [Name, melt, _, _], _R) ->
   case is_installed(Name, S) of
@@ -416,18 +423,6 @@ run_features(#state { time = Ts } = S, [Name, melt, _, _], _R) ->
     false ->
       [{fuse_eqc, r10, run_on_uninstalled_fuse}]
   end.
-
-run_return(S, [Name, _Result, Return, _]) ->
-    case is_installed(Name, S) of
-        true ->
-        case is_blown(Name, S) orelse is_disabled(Name, S) of
-            false -> {ok, Return};
-            true -> blown
-        end;
-        false ->
-            {error, not_found}
-    end.
-
 
 %%% melt/1 melts the fuse a little bit
 %% ---------------------------------------------------------------
@@ -628,7 +623,7 @@ lookup_fuse(Name, #state { installed = Fs } = State) ->
                         true -> blown;
                         false -> {gradual, Rate}
                     end,
-                    {standard, Blown}
+                    {fault_injection, Blown}
             end
     end.
 

@@ -11,7 +11,6 @@
 -record(state, {
           time = -10000,  % Current time in the model. We track time to handle melting time points.
           melts = [], % History of current melts issued to the SUT
-          blown = [], % List of currently blown fuses
           disabled = [], % List of fuses which are currently manually disabled
           installed = [], % List of installed fuses, with their configuration.
           reqs = [] %% Record the requirements we test
@@ -132,26 +131,26 @@ fuse_reset(Name) ->
     ok.
 
 %% You can reset a fuse if there is a blown fuse in the system.
-fuse_reset_pre(#state { blown = Blown }) -> Blown /= [].
+fuse_reset_pre(S) -> has_blown(S).
 
-fuse_reset_args(#state { blown = Names }) ->
-    [elements(Names)].
+fuse_reset_args(S) ->
+    Blown = blown_fuses(S),
+    [elements(Blown)].
 
 %% Fuses will only be reset if their state is among the installed and are blown.
 %% Precondition checking is effective at shrinking down failing models.
-fuse_reset_pre(#state { blown = Blown } = S, [Name]) ->
-    is_installed(Name, S) andalso lists:member(Name, Blown).
+fuse_reset_pre(S, [Name]) ->
+    is_installed(Name, S) andalso is_blown(Name, S).
 
 %% Note: when a fuse heals, the internal state is reset.
-fuse_reset_next(#state { blown = RPs } = S, _V, [Name]) ->
-    case lists:member(Name, RPs) of
+fuse_reset_next(S, _V, [Name]) ->
+    case is_blown(Name, S) of
         false -> S;
-        true ->
-            clear_melts(Name, S#state { blown = lists:delete(Name, RPs) })
+        true -> clear_melts(Name, S)
     end.
 
-fuse_reset_features(#state { blown = RPs } = S, [Name], _Response) ->
-    case lists:member(Name, RPs) of
+fuse_reset_features(S, [Name], _Response) ->
+    case is_blown(Name, S) of
         false -> [{fuse_eqc, r01, heal_non_installed}];
         true -> [{fuse_eqc, r02, {heal_installed_fuse, is_blown(Name, S)}}]
     end.
@@ -180,9 +179,7 @@ install_next(#state{ installed = Is } = S, _V, [Name, Opts]) ->
         false -> S;
         true ->
             T = {Name, parse_opts(Opts)},
-            clear_melts(Name,
-                clear_blown(Name,
-                    S#state { installed = lists:keystore(Name, 1, Is, T) }))
+            clear_melts(Name, S#state { installed = lists:keystore(Name, 1, Is, T) })
     end.
 
 install_features(S, [Name, Opts], _R) ->
@@ -226,9 +223,7 @@ circuit_disable_next(S, _, [Name]) ->
     case is_installed(Name, S) andalso not is_disabled(Name, S) of
         false -> S;
         true ->
-            clear_blown(Name,
-               clear_melts(Name,
-                  add_disabled(Name, S)))
+            clear_melts(Name, add_disabled(Name, S))
     end.
 
 circuit_disable_features(S, [Name], _V) ->
@@ -261,9 +256,7 @@ circuit_enable_next(S, _, [Name]) ->
     case is_installed(Name, S) andalso is_disabled(Name, S) of
        false -> S;
        true ->
-           clear_blown(Name,
-             clear_melts(Name,
-               remove_disabled(Name, S)))
+           clear_melts(Name, remove_disabled(Name, S))
     end.
 
 circuit_enable_features(S, [Name], _V) ->
@@ -295,10 +288,7 @@ reset_return(S, [Name]) ->
 reset_next(S, _V, [Name]) ->
     case is_installed(Name, S) of
         false -> S;
-        true ->
-          clear_blown(Name,
-            clear_melts(Name,
-              S))
+        true -> clear_melts(Name, S)
      end.
 
 reset_features(S, [Name], _V) ->
@@ -627,11 +617,21 @@ lookup_fuse(Name, #state { installed = Fs } = State) ->
             end
     end.
 
-is_blown(Name, #state { blown = BlownFuses }) ->
-    lists:member(Name, BlownFuses).
+is_blown(Name, S) ->
+    case melt_state(Name, S) of
+        ok -> false;
+        blown -> true
+   end.
 
 is_disabled(Name, #state { disabled = Ds }) ->
     lists:member(Name, Ds).
+
+has_blown(S) ->
+    blown_fuses(S) /= [].
+
+blown_fuses(#state { installed = Fuses } = S) ->
+    Names = [element(1, F) || F <- Fuses],
+    [F || F <- Names, is_blown(F, S)].
 
 has_disabled(#state { disabled = Ds }) -> Ds /= [].
 
@@ -661,15 +661,11 @@ parse_opts({{fault_injection, Rate, C, P}, {reset, Reset}}) ->
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
     S#state { melts = [{Name, Ts} | Ms] }.
 
-record_melt_history(Name, #state { blown = OldRPs } = S) ->
+record_melt_history(Name, S) ->
     case melt_state(Name, S) of
         ok -> {[], S};
         blown ->
-            case lists:member(Name, OldRPs) of
-                true -> {[], S}; %% Can have at most 1 RP for a name
-                false ->
-                    {[{fuse_eqc, r13, blowing_fuse}], S#state { blown = OldRPs ++ [Name] }}
-            end
+            {[{fuse_eqc, r13, blowing_fuse}], S}
     end.
 
 expire_melts(Period, Who, #state { time = Now, melts = Ms } = S) ->
@@ -679,9 +675,6 @@ expire_melts(Period, Who, #state { time = Now, melts = Ms } = S) ->
         true -> {[{fuse_eqc, r14, expiring_melts}], NewState};
         false -> {[], NewState}
     end.
-
-clear_blown(Name, #state { blown = Rs } = S) ->
-    S#state { blown = [N || N <- Rs, N /= Name] }.
 
 clear_melts(Name, #state { melts = Ms } = S) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.

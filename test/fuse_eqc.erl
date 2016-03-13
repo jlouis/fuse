@@ -627,8 +627,11 @@ lookup_fuse(Name, #state { installed = Fs } = State) ->
             end
     end.
 
-is_blown(Name, #state { blown = BlownFuses }) ->
-    lists:member(Name, BlownFuses).
+is_blown(Name, S) ->
+    case melt_state(Name, S) of
+        ok -> false;
+        blown -> true
+   end.
 
 is_disabled(Name, #state { disabled = Ds }) ->
     lists:member(Name, Ds).

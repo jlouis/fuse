@@ -88,9 +88,16 @@ g_strategy() ->
         ])
     ).
 
+g_command() ->
+    oneof(
+      [{delay, ?LET(N, nat(), N+1)},
+       {barrier, g_atom()},
+       {gradual, g_uniform_real()},
+       heal]).
+
 %% g_refresh()/0 generates a refresh setting.
 g_refresh() ->
-    {reset, 60000}.
+    oneof([{reset, 60000}, non_empty(list(g_command()))]).
 
 %% g_options() generates install options
 g_options() ->

@@ -704,12 +704,4 @@ remove_disabled(Name, #state { disabled = Ds } = State) ->
 in_period(Ts, Now, _) when Now < Ts -> false;
 in_period(Ts, Now, Period) when Now >= Ts -> (Now - Ts) < Period.
 
-%% A little monad action:
-bind(M, F) ->
-    {Write, S} = M,
-    {Write2, S2} = F(S),
-    {Write ++ Write2, S2}.
-
-val(V) -> {[], V}.
-
 -endif.

@@ -88,7 +88,7 @@ g_strategy() ->
         ])
     ).
 
-g_command() ->
+g_cmd() ->
     oneof(
       [{delay, ?LET(N, nat(), N+1)},
        {barrier, g_atom()},
@@ -97,7 +97,7 @@ g_command() ->
 
 %% g_refresh()/0 generates a refresh setting.
 g_refresh() ->
-    oneof([{reset, 60000}, non_empty(list(g_command()))]).
+    oneof([{reset, 60000}, non_empty(list(g_cmd()))]).
 
 %% g_options() generates install options
 g_options() ->
@@ -660,10 +660,15 @@ count_melts(Name, #state { melts = Ms }) ->
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
-parse_opts({{standard, C, P},{reset, R}}) ->
-    #{ fuse_type => standard, count => C, period => P, reset => R };
-parse_opts({{fault_injection, Rate, C, P}, {reset, Reset}}) ->
-    #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => Reset }.
+parse_opts({{standard, C, P},Cmds}) ->
+    #{ fuse_type => standard, count => C, period => P, reset => parse_cmds(Cmds) };
+parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
+    #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => parse_cmds(Cmds) }.
+
+parse_cmds({reset, N}) ->
+    [{delay, N}, heal];
+parse_cmds(Cs) ->
+    Cs.
 
 record_melt(Name, Ts, #state { melts = Ms } = S) ->
     S#state { melts = [{Name, Ts} | Ms] }.

@@ -45,12 +45,6 @@
 	enabled = true
 }).
 
--ifdef(EQC_TESTING).
--define(TIME, fuse_time_mock).
--else.
--define(TIME, fuse_time).
--endif.
-
 %% -- API -----------------------------------------------------
 
 %% ------
@@ -191,7 +185,7 @@ handle_call({remove, Name}, _From, State) ->
 	{Reply, State2} = handle_remove(Name, State),
 	{reply, Reply, State2};
 handle_call({melt, Name}, _From, State) ->
-	Now = ?TIME:monotonic_time(),
+	Now = fuse_time:monotonic_time(),
 	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
 	case Res of
 	  ok ->
@@ -286,7 +280,7 @@ init_state(Name, {{standard, MR, MT}, {reset, Reset}}) ->
     init_state(Name, ok, MR, MT, {reset, Reset}).
 
 init_state(Name, Ty, MR, MT, {reset, Reset}) ->
-    NativePeriod = ?TIME:convert_time_unit(MT, milli_seconds, native),
+    NativePeriod = fuse_time:convert_time_unit(MT, milli_seconds, native),
     #fuse {
       name = Name,
       intensity = MR,
@@ -312,7 +306,7 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_
             {ok, NewF};
         _ ->
             blow(Fuse),
-            TRef = ?TIME:send_after(Heal, self(), {reset, Name}),
+            TRef = fuse_time:send_after(Heal, self(), {reset, Name}),
             {ok, NewF#fuse { timer_ref = TRef }}
     end.
 
@@ -350,5 +344,5 @@ install_metrics(#fuse { name = N }) ->
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->
-    _ = ?TIME:cancel_timer(TRef),
+    _ = fuse_time:cancel_timer(TRef),
     F#fuse { timer_ref = none }.

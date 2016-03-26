@@ -9,7 +9,6 @@
 
 %%% Model state.
 -record(state, {
-          time = -10000,  % Current time in the model. We track time to handle melting time points.
           melts = [], % History of current melts issued to the SUT
           blown = [], % List of currently blown fuses
           disabled = [], % List of fuses which are currently manually disabled
@@ -97,7 +96,7 @@ g_cmd() ->
 
 %% g_refresh()/0 generates a refresh setting.
 g_refresh() ->
-    oneof([{reset, 60000}, non_empty(list(g_cmd()))]).
+    oneof([{reset, 60000}]).
 
 %% g_options() generates install options
 g_options() ->
@@ -110,25 +109,6 @@ g_time_inc() ->
 
 %% initial_state/0 generates the initial system state
 initial_state() -> #state{}.
-
-%% -- TIME HANDLING ------------------------------------------------------
-
-
-%% elapse_time
-%% ---------------------------------------------------------------
-%% Let time pass in the model. This increases time by an amount so calls will happen
-%% at a later point than normally.
-elapse_time(N) ->
-    fuse_time_mock:elapse_time(N).
-
-elapse_time_args(_S) -> [g_time_inc()].
-
-elapse_time_next(#state { time = T } = State, _V, [N]) ->
-    State#state { time = T + N }.
-
-elapse_time_return(#state { time = T }, [N]) -> T+N.
-
-elapse_time_features(_S, _A, _R) -> [{fuse_eqc, r00, elapse_time}].
 
 %% fuse_reset/2 sends timer messages into the SUT
 %% ---------------------------------------------------------------
@@ -179,6 +159,10 @@ install(Name, Opts) ->
 
 install_args(_S) ->
     [g_name(), g_options()].
+
+install_callouts(_S, [_Name, Opts]) ->
+    #{ period := P } = parse_opts(Opts),
+    ?APPLY(fuse_time_eqc, convert_time_unit, [P, milli_seconds, native]).
 
 %% When installing new fuses, the internal state is reset for the fuse.
 %% Also, consider if the installed is valid at all.
@@ -353,26 +337,6 @@ ask_features(S, [Name], _V) ->
        false -> [{fuse_eqc, r16, ask_uninstalled}]
     end.
 
-%% -- LOOKUP FUSE STATE (Internal) --------------------------------------------------------
-
-lookup_callouts(S, [Name]) ->
-    case lookup_fuse(Name, S) of
-        not_found ->
-            ?RET({error, not_found});
-        {_, disabled} ->
-            ?RET(blown);
-        {_, blown} ->
-            ?RET(blown);
-        {standard, ok} ->
-            ?RET(ok);
-        {fault_injection, {gradual, X}} ->
-            ?MATCH(Rand, ?CALLOUT(fuse_rand, uniform, [], g_split_float(X))),
-            case Rand < X of
-                true -> ?RET(blown);
-                false -> ?RET(ok)
-            end
-    end.
-
 %%% run/1 runs a function (thunk) on the circuit breaker
 %% ---------------------------------------------------------------
 run(Name, _Result, _Return, Fun) ->
@@ -393,24 +357,18 @@ run_callouts(_S, [Name, Result, Return, _Fun]) ->
         blown ->
             ?RET(blown);
         ok ->
-            ?APPLY(run_melt, [Name, Result]),
+            case Result of
+               ok -> ?EMPTY;
+               melt ->
+                 ?MATCH(Ts, ?APPLY(fuse_time_eqc, monotonic_time, [])),
+                 ?APPLY(process_melt, [Name, Ts])
+            end,
             ?RET({ok, Return})
     end.
 
-%% Track melting of fuses
-run_melt_next(S, _V, [_Name, ok]) -> S;
-run_melt_next(#state{ time = Ts } = S, _V, [Name, melt]) ->
-    M = val(record_melt(Name, Ts, S)),
-    {_, NewState} = 
-        bind(M, fun(S2) ->
-        bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-            record_melt_history(Name, S3) end) end),
-    NewState.
 
-%% TODO: Fold this into the underlying helper functions
-%% of run_melt and lookup. This yields a simpler model.
 run_features(_S, [_Name, ok, _, _], _R) -> [{fuse_eqc, r07, run_ok_fuse}];
-run_features(#state { time = Ts } = S, [Name, melt, _, _], _R) ->
+run_features(S, [Name, melt, _, _], _R) ->
   case is_installed(Name, S) of
     true ->
       case is_blown(Name, S) of
@@ -420,12 +378,7 @@ run_features(#state { time = Ts } = S, [Name, melt, _, _], _R) ->
                true -> [{fuse_eqc, r21, run_melt_on_disabled_fuse}];
                false -> []
            end,
-           M = val(record_melt(Name, Ts, S)),
-           {Features, _} =
-             bind(M, fun(S2) ->
-             bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-               record_melt_history(Name, S3) end) end),
-           Disables ++ Features ++ [{fuse_eqc, r09, run_melt_on_installed_fuse}]
+           Disables ++ [{fuse_eqc, r09, run_melt_on_installed_fuse}]
       end;
     false ->
       [{fuse_eqc, r10, run_on_uninstalled_fuse}]
@@ -446,23 +399,13 @@ melt_installed_args(_S) -> [g_name()].
 melt_installed_pre(S, [Name]) ->
     is_installed(Name, S).
 
-melt_installed_next(#state { time = Ts } = S, _V, [Name]) ->
-    M = val(record_melt(Name, Ts, S)),
-    {_, NewState} =
-      bind(M, fun(S2) ->
-      bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-        record_melt_history(Name, S3) end) end),
-    NewState.
+melt_installed_callouts(_S, [Name]) ->
+    ?MATCH(Ts, ?APPLY(fuse_time_eqc, monotonic_time, [])),
+    ?APPLY(process_melt, [Name, Ts]),
+    ?RET(ok).
 
-melt_installed_features(#state { time = Ts } = S, [Name], _V) ->
-    M = val(record_melt(Name, Ts, S)),
-    {Features, _} =
-      bind(M, fun(S2) ->
-      bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-        record_melt_history(Name, S3) end) end),
-    [{fuse_eqc, r11, melt_installed_fuse}] ++ Features.
-
-melt_installed_return(_S, _) -> ok.
+melt_installed_features(_S, [_Name], _V) ->
+    [{fuse_eqc, r11, melt_installed_fuse}].
 
 melt(Name) ->
     fuse:melt(Name).
@@ -473,35 +416,32 @@ melt_pre(S) ->
 melt_args(_S) ->
     [g_name()].
 
-melt_next(#state { time = Ts } = S, _V, [Name]) ->
+melt_callouts(S, [Name]) ->
+    ?MATCH(Ts, ?APPLY(fuse_time_eqc, monotonic_time, [])),
     case is_installed(Name, S) of
-            true ->
-              M = val(record_melt(Name, Ts, S)),
-              {_, NewState} =
-                bind(M, fun(S2) ->
-                bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-                  record_melt_history(Name, S3) end) end),
-              NewState;
-            false -> S
-    end.
+        false -> ?EMPTY;
+        true ->
+            ?APPLY(process_melt, [Name, Ts])
+    end,
+    ?RET(ok).
 
-melt_features(#state { time = Ts } = S, [Name], _V) ->
+melt_features(S, [Name], _V) ->
     case is_installed(Name, S) of
         true ->
               Disabled = case is_disabled(Name, S) of
                   true -> [{fuse_eqc, r21, melt_on_disabled_fuse}];
                   false -> []
               end,
-              M = val(record_melt(Name, Ts, S)),
-              {Features, _} =
-                bind(M, fun(S2) ->
-                bind(expire_melts(fuse_period(Name, S2), Name, S2), fun(S3) ->
-                  record_melt_history(Name, S3) end) end),
-              [{fuse_eqc, r11, melt_installed_fuse}] ++ Features ++ Disabled;
+              [{fuse_eqc, r11, melt_installed_fuse}] ++ Disabled;
         false -> [{fuse_eqc, r12, melt_uninstalled_fuse}]
     end.
 
-melt_return(_S, _) -> ok.
+%% Internal helper call for melt processing
+process_melt_callouts(_S, [Name, Ts]) ->
+    ?APPLY(record_melt, [Name, Ts]),
+    ?MATCH(Period, ?APPLY(fuse_period, [Name])),
+    ?APPLY(expire_melts, [Name, Period, Ts]),
+    ?APPLY(record_melt_history, [Name]).
 
 %% remove/1 removes a fuse
 %% ---------------------------------------------------------------
@@ -535,6 +475,79 @@ remove_features(S, [Name], _V) ->
         false -> [{fuse_eqc, r17, remove_uninstalled_fuse}];
         true -> [{fuse_eqc, r18, remove_installed_fuse}]
     end.
+
+%% -- LOOKUP FUSE STATE (INTERNAL CALL) --------------------------------------------------------
+
+lookup_callouts(S, [Name]) ->
+    case lookup_fuse(Name, S) of
+        not_found ->
+            ?RET({error, not_found});
+        {_, disabled} ->
+            ?RET(blown);
+        {_, blown} ->
+            ?RET(blown);
+        {standard, ok} ->
+            ?RET(ok);
+        {fault_injection, {gradual, X}} ->
+            ?MATCH(Rand, ?CALLOUT(fuse_rand, uniform, [], g_split_float(X))),
+            case Rand < X of
+                true -> ?RET(blown);
+                false -> ?RET(ok)
+            end
+    end.
+
+
+%% -- RECORD MELT (INTERNAL CALL) -----------------------------
+record_melt_next(#state { melts = Ms } = S, _, [Name, Ts]) ->
+    S#state { melts = [{Name, Ts} | Ms] }.
+
+%% -- EXPIRE MELTS (INTERNAL CALL) ---------------------------
+%%
+expire_melts_next(#state { melts = Ms } = S, _, [Who, Period, Now]) ->
+    Updated = [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
+    S#state { melts = Updated }.
+    
+expire_melts_features(#state { melts = Ms }, [Who, Period, Now], _) ->
+    Updated = [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
+    case Ms /= Updated of
+        true -> [{fuse_eqc, r14, expiring_melts}];
+        false -> []
+    end.
+
+%% -- COMPUTING FUSE PERIODS (INTERNAL CALL) ------------------------------
+fuse_period_return(#state { installed = Is }, [Name]) ->
+    {_, #{ period := Period }} = lists:keyfind(Name, 1, Is),
+    Period.
+
+%% -- RECORD MELT HISTORY (INTERNAL CALL) -------------------------
+%%
+record_melt_history_callouts(#state { blown = Blown } = S, [Name]) ->
+    case melt_state(Name, S) of
+        ok -> ?EMPTY;
+        blown ->
+            case lists:member(Name, Blown) of
+                true -> ?EMPTY;
+                false -> ?APPLY(blow_fuse, [Name])
+            end
+    end.
+
+record_melt_history_features(#state { blown = OldRPs } = S, [Name], _) ->
+    case melt_state(Name, S) of
+        ok -> [];
+        blown ->
+            case lists:member(Name, OldRPs) of
+                true -> [];
+                false -> [{fuse_eqc, r13, blowing_fuse}]
+            end
+    end.
+
+blow_fuse_callouts(_S, [Name]) ->
+    ?APPLY(fuse_time_eqc, send_after, [60000, ?WILDCARD, {reset, Name}]),
+    ?APPLY(add_blown, [Name]).
+
+add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
+    S#state { blown = Blown ++ [Name] }.
+
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
@@ -583,6 +596,8 @@ cleanup() ->
 
 setup() ->
   error_logger:tty(false),
+  application:load(fuse),
+  application:set_env(fuse, monitor, false),
   application:load(sasl),
   application:set_env(sasl, sasl_error_logger, false),
   application:set_env(sasl, errlog_type, error),
@@ -646,9 +661,6 @@ fuse_intensity(Name, #state { installed = Inst }) ->
     {Name, #{ count := Count } } = lists:keyfind(Name, 1, Inst),
     Count.
 
-fuse_period(Name, #state { installed = Is }) ->
-    {_, #{ period := Period }} = lists:keyfind(Name, 1, Is),
-    Period.
 
 count_state(N) when N < 0 -> blown;
 count_state(_N) -> ok.
@@ -665,32 +677,13 @@ parse_opts({{standard, C, P},Cmds}) ->
 parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
     #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => parse_cmds(Cmds) }.
 
-parse_cmds({reset, N}) ->
-    [{delay, N}, heal];
-parse_cmds(Cs) ->
-    Cs.
+parse_cmds({reset, N}) -> N.
+%%
+%%    [{delay, N}, heal];
+%%parse_cmds(Cs) ->
+%%    Cs.
 
-record_melt(Name, Ts, #state { melts = Ms } = S) ->
-    S#state { melts = [{Name, Ts} | Ms] }.
 
-record_melt_history(Name, #state { blown = OldRPs } = S) ->
-    case melt_state(Name, S) of
-        ok -> {[], S};
-        blown ->
-            case lists:member(Name, OldRPs) of
-                true -> {[], S}; %% Can have at most 1 RP for a name
-                false ->
-                    {[{fuse_eqc, r13, blowing_fuse}], S#state { blown = OldRPs ++ [Name] }}
-            end
-    end.
-
-expire_melts(Period, Who, #state { time = Now, melts = Ms } = S) ->
-    Updated = [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
-    NewState = S#state { melts = Updated },
-    case Ms /= Updated of
-        true -> {[{fuse_eqc, r14, expiring_melts}], NewState};
-        false -> {[], NewState}
-    end.
 
 clear_blown(Name, #state { blown = Rs } = S) ->
     S#state { blown = [N || N <- Rs, N /= Name] }.

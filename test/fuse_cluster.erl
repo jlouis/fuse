@@ -10,7 +10,7 @@ components() -> [
 	fuse_eqc
 ].
 
-api_spec() -> api_spec(?MODULE).
+api_spec() -> eqc_cluster:api_spec(?MODULE).
 
 prop_cluster_correct() ->
     ?SETUP(fun() ->
@@ -20,12 +20,12 @@ prop_cluster_correct() ->
     end,
     ?FORALL(Cmds, eqc_cluster:commands(?MODULE),
        begin
-          cleanup(),
+          fuse_eqc:cleanup(),
           {H,S,R} = eqc_cluster:run_commands(?MODULE, Cmds),
           pretty_commands(?MODULE, Cmds, {H,S,R},
             aggregate(with_title('Commands'), command_names(Cmds),
             aggregate(with_title('Features'), eqc_statem:call_features(H),
             features(eqc_statem:call_features(H),
                 R == ok))))
-      end))).
+      end)).
           

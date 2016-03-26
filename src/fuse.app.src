@@ -9,7 +9,9 @@
 		sasl
 	]},
 	{mod, {fuse_app, []}},
-	{env, []},
+	{env, [
+	   {monitor, true}
+	]},
 	
 	{maintainers, ["Jesper Louis Andersen"]},
 	{licenses, ["MIT"]},

@@ -47,7 +47,7 @@ advance_time_next(#state { time = T } = State, _, [A]) ->
 	
 advance_time_return(_S, _) -> ok.
 
-advance_time_features(_, _, _) -> [{fuse_time, advance_time}].
+advance_time_features(_, _, _) -> [{fuse_time, r00, advance_time}].
 
 %% -- PRECONDITIONS --------------------------------------------------------
 %% This is to be used by another component as:
@@ -92,7 +92,7 @@ trigger_msg_next(#state { timers = TS } = S, _, [Msg]) ->
 monotonic_time_callers() -> [fuse_server].
 
 monotonic_time_callouts(#state {time = T }, []) ->
-    ?CALLOUT(dht_time, monotonic_time, [], T),
+    ?CALLOUT(fuse_time, monotonic_time, [], T),
     ?RET(T).
 
 monotonic_time_return(#state { time = T }, []) -> T.
@@ -100,7 +100,7 @@ monotonic_time_return(#state { time = T }, []) -> T.
 convert_time_unit_callers() -> [fuse_server].
 
 convert_time_unit_callouts(_S, [T, From, To]) ->
-    ?CALLOUT(dht_time, convert_time_unit, [T, From, To], T),
+    ?CALLOUT(fuse_time, convert_time_unit, [T, From, To], T),
     case {From, To} of
         {native, milli_seconds} -> ?RET(T);
         {milli_seconds, native} -> ?RET(T);
@@ -110,10 +110,10 @@ convert_time_unit_callouts(_S, [T, From, To]) ->
 send_after_callers() -> [fuse_server].
 
 send_after_callouts(#state { time_ref = Ref}, [Timeout, Reg, Msg]) when is_atom(Reg) ->
-    ?CALLOUT(dht_time, send_after, [Timeout, Reg, Msg], {tref, Ref}),
+    ?CALLOUT(fuse_time, send_after, [Timeout, Reg, Msg], {tref, Ref}),
     ?RET({tref, Ref});
 send_after_callouts(#state { time_ref = Ref}, [Timeout, Pid, Msg]) when is_pid(Pid) ->
-    ?CALLOUT(dht_time, send_after, [Timeout, ?WILDCARD, Msg], {tref, Ref}),
+    ?CALLOUT(fuse_time, send_after, [Timeout, ?WILDCARD, Msg], {tref, Ref}),
     ?RET({tref, Ref}).
 
 send_after_next(#state { time = T, time_ref = Ref, timers = TS } = S, _, [Timeout, Pid, Msg]) ->
@@ -124,7 +124,7 @@ cancel_timer_callers() -> [fuse_server].
 
 cancel_timer_callouts(S, [{tref, TRef}]) ->
     Return = cancel_timer_rv(S, TRef),
-    ?CALLOUT(dht_time, cancel_timer, [{tref, TRef}], Return),
+    ?CALLOUT(fuse_time, cancel_timer, [{tref, TRef}], Return),
     ?RET(Return).
 
 cancel_timer_rv(#state { time = T, timers = TS }, TRef) ->

@@ -24,7 +24,15 @@ start_link() ->
 %% ------
 %% @private
 init([]) ->
+    Monitor = init_monitor(),
     {ok, { {rest_for_one, 5, 3600},
            [?CHILD(fuse_server, []),
-            ?CHILD(fuse_event, []),
-            ?CHILD(fuse_monitor, [])]}}.
+            ?CHILD(fuse_event, [])] ++ Monitor }}.
+
+init_monitor() ->
+   case application:get_env(fuse, monitor) of
+      {ok, true} ->
+          [?CHILD(fuse_monitor, [])];
+      {ok, false} ->
+          []
+   end.

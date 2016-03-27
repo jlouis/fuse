@@ -335,6 +335,8 @@ Development guided by properties leads to a code base which is considerably smal
 * The EQC model suggested the introduction of the `Context` variable and the handling of different operating contexts. It also uncovered exactly how limited context handling leads to problems with lineariaziblity of the calls.
 * Switching between fuse types had numerous errors, removed by EQC.
 * The ability to administratively disable/enable fuses had weird interactions with operations which (re-)installed fuses into the system.
+* Implementing a full component-based timing model found an off-by-one bug in period calculations.
+* The component based model found situations where timers were set more than once.
 
 The monitor model found the following:
 

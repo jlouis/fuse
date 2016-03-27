@@ -297,7 +297,7 @@ with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
             {R, State#state { fuses = [FF | OtherFs] }}
     end.
 
-add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_time = Heal, name = Name } = Fuse) ->
+add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R } = Fuse) ->
     R1 = add_restart_([Now | R], Now, Period),
     NewF = Fuse#fuse { melt_history = R1 },
     case length(R1) of
@@ -319,11 +319,11 @@ in_period(Time, Now, Period) when (Now - Time) >= Period -> false;
 in_period(_, _, _) -> true.
 
 blow(#fuse { enabled = false }) -> ok;
-blow(#fuse { name = Name, timer_ref = none }) ->
+blow(#fuse { name = Name, timer_ref = none, heal_time = HealTime }) ->
     ets:insert(?TAB, {Name, blown}),
     fuse_event:notify({Name, blown}),
-    TRef = fuse_time:send_after(Heal, self(), {reset, Name});
-blow(#fuse { name = Name, timer_ref = TRef }) ->
+    fuse_time:send_after(HealTime, self(), {reset, Name});
+blow(#fuse { timer_ref = TRef }) ->
     %% Return the current timer reference as the fuse is already blown
     TRef.
 

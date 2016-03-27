@@ -305,8 +305,7 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R, heal_
         CurI when CurI =< I ->
             {ok, NewF};
         _ ->
-            blow(Fuse),
-            TRef = fuse_time:send_after(Heal, self(), {reset, Name}),
+            TRef = blow(Fuse),
             {ok, NewF#fuse { timer_ref = TRef }}
     end.
 
@@ -321,10 +320,16 @@ in_period(Time, Now, Period) when (Now - Time) >= Period -> false;
 in_period(_, _, _) -> true.
 
 blow(#fuse { enabled = false }) -> ok;
-blow(#fuse { name = Name }) ->
+blow(#fuse { name = Name, timer_ref = none }) ->
     ets:insert(?TAB, {Name, blown}),
     fuse_event:notify({Name, blown}),
-    ok.
+    TRef = fuse_time:send_after(Heal, self(), {reset, Name});
+blow(#fuse { name = Name, timer_ref = TRef }) ->
+    %% Return the current timer reference as the fuse is already blown
+    TRef.
+
+
+blow(#fuse { name = Name }) ->
 
 fix(#fuse { enabled = false }) -> ok;
 fix(#fuse { name = Name, ty = TY }) ->
@@ -337,12 +342,13 @@ delete(#fuse { name = Name }) ->
     fuse_event:notify({Name, removed}),
     ok.
 
+reset_timer(#fuse { timer_ref = none } = F) -> F;
+reset_timer(#fuse { timer_ref = TRef } = F) ->
+    _ = fuse_time:cancel_timer(TRef),
+    F#fuse { timer_ref = none }.
+
 install_metrics(#fuse { name = N }) ->
 	StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
 	_ = StatsPlugin:init(N),
 	ok.
 
-reset_timer(#fuse { timer_ref = none } = F) -> F;
-reset_timer(#fuse { timer_ref = TRef } = F) ->
-    _ = fuse_time:cancel_timer(TRef),
-    F#fuse { timer_ref = none }.

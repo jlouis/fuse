@@ -3,9 +3,11 @@
 %%% @end
 -module(eqc_lib).
 -vsn("1.3.0").
+-compile(export_all).
+-ifdef(EQC_TESTING).
+
 -include_lib("eqc/include/eqc.hrl").
 
--compile(export_all).
 
 %%% BIT INTEGERS
 %%% ---------------------------------------------------------------
@@ -271,3 +273,5 @@ tracker_loop(S) ->
       {set_state, N} ->
           ?MODULE:tracker_loop(N)
     end.
+
+-endif.

@@ -289,7 +289,6 @@ init_state(Name, Ty, MR, MT, {reset, Reset}) ->
       ty = Ty
     }.
 
-
 with_fuse(Name, #state { fuses = Fs} = State, Fun) ->
     case lists:keytake(Name, #fuse.name, Fs) of
         false -> {not_found, State};
@@ -327,9 +326,6 @@ blow(#fuse { name = Name, timer_ref = none }) ->
 blow(#fuse { name = Name, timer_ref = TRef }) ->
     %% Return the current timer reference as the fuse is already blown
     TRef.
-
-
-blow(#fuse { name = Name }) ->
 
 fix(#fuse { enabled = false }) -> ok;
 fix(#fuse { name = Name, ty = TY }) ->

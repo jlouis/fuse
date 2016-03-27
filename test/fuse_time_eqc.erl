@@ -1,6 +1,8 @@
 -module(fuse_time_eqc).
 -compile(export_all).
 
+-ifdef(EQC_TESTING).
+
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
@@ -175,3 +177,6 @@ t() -> t(5).
 
 t(Secs) ->
     eqc:quickcheck(eqc:testing_time(Secs, eqc_statem:show_states(prop_component_correct()))).
+    
+    
+-endif.

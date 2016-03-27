@@ -683,8 +683,6 @@ parse_cmds({reset, N}) -> N.
 %%parse_cmds(Cs) ->
 %%    Cs.
 
-
-
 clear_blown(Name, #state { blown = Rs } = S) ->
     S#state { blown = [N || N <- Rs, N /= Name] }.
 

@@ -10,6 +10,8 @@ ERLC_OPTS := +debug_info +warn_export_all +warn_export_vars \
 
 app_eqc: ERLC_OPTS += -DEQC_TESTING
 app_eqc: app
+	rm -f *.beam
+	erlc -DEQC_TESTING test/*.erl 
 
 # Options.
 CT_SUITES = fuse

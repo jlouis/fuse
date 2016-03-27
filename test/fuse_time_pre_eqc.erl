@@ -5,7 +5,7 @@
 %%% @end
 %%% Created : 26 Mar 2014 by Thomas Arts <thomas.arts@quviq.com>
 
--module(fuse_time_eqc).
+-module(fuse_time_pre_eqc).
 -compile(export_all).
 
 -ifdef(EQC_TESTING).

@@ -1,5 +1,7 @@
 -module(fuse_cluster).
 
+-ifdef(EQC_TESTING).
+
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_cluster.hrl").
 
@@ -28,4 +30,13 @@ prop_cluster_correct() ->
             features(eqc_statem:call_features(H),
                 R == ok))))
       end)).
-          
+
+t() -> t(15).
+
+t(Secs) ->
+    eqc:quickcheck(eqc:testing_time(Secs, eqc_statem:show_states(prop_cluster_correct()))).
+    
+recheck() ->
+    eqc:recheck(eqc_statem:show_states(prop_cluster_correct())).
+    
+-endif.

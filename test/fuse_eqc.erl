@@ -700,6 +700,6 @@ remove_disabled(Name, #state { disabled = Ds } = State) ->
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;
-in_period(Ts, Now, Period) when Now >= Ts -> (Now - Ts) < Period.
+in_period(Ts, Now, Period) when Now >= Ts -> (Now - Ts) =< Period.
 
 -endif.

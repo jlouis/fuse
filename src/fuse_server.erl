@@ -317,7 +317,7 @@ add_restart_([R|Restarts], Now, Period) ->
     end;
 add_restart_([], _, _) -> [].
 
-in_period(Time, Now, Period) when (Now - Time) > Period -> false;
+in_period(Time, Now, Period) when (Now - Time) >= Period -> false;
 in_period(_, _, _) -> true.
 
 blow(#fuse { enabled = false }) -> ok;

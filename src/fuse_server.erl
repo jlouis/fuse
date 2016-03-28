@@ -304,8 +304,8 @@ add_restart(Now, #fuse { intensity = I, period = Period, melt_history = R } = Fu
         CurI when CurI =< I ->
             {ok, NewF};
         _ ->
-            TRef = blow(Fuse),
-            {ok, NewF#fuse { timer_ref = TRef }}
+            blow(NewF),
+            {ok, install_timer(NewF)}
     end.
 
 add_restart_([R|Restarts], Now, Period) ->
@@ -318,14 +318,11 @@ add_restart_([], _, _) -> [].
 in_period(Time, Now, Period) when (Now - Time) >= Period -> false;
 in_period(_, _, _) -> true.
 
+%% -- FUSE MANIPULATION ------------------
 blow(#fuse { enabled = false }) -> ok;
-blow(#fuse { name = Name, timer_ref = none, heal_time = HealTime }) ->
+blow(#fuse { name = Name }) ->
     ets:insert(?TAB, {Name, blown}),
-    fuse_event:notify({Name, blown}),
-    fuse_time:send_after(HealTime, self(), {reset, Name});
-blow(#fuse { timer_ref = TRef }) ->
-    %% Return the current timer reference as the fuse is already blown
-    TRef.
+    fuse_event:notify({Name, blown}).
 
 fix(#fuse { enabled = false }) -> ok;
 fix(#fuse { name = Name, ty = TY }) ->
@@ -337,6 +334,14 @@ delete(#fuse { name = Name }) ->
     ets:delete(?TAB, Name),
     fuse_event:notify({Name, removed}),
     ok.
+
+%% -- TIMERS ----
+install_timer(#fuse { enabled = false } = F) -> F;
+install_timer(#fuse { name = Name, timer_ref = none, heal_time = HealTime } = F) ->
+    TRef = fuse_time:send_after(HealTime, self(), {reset, Name}),
+    F#fuse{ timer_ref = TRef };
+install_timer(F) ->
+    F.
 
 reset_timer(#fuse { timer_ref = none } = F) -> F;
 reset_timer(#fuse { timer_ref = TRef } = F) ->

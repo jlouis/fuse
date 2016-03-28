@@ -337,6 +337,7 @@ Development guided by properties leads to a code base which is considerably smal
 * The ability to administratively disable/enable fuses had weird interactions with operations which (re-)installed fuses into the system.
 * Implementing a full component-based timing model found an off-by-one bug in period calculations.
 * The component based model found situations where timers were set more than once.
+* EQC found a case where timers are not correctly disabled when you call for circuit disables.
 
 The monitor model found the following:
 

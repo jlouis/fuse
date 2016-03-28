@@ -228,15 +228,18 @@ code_change(_OldVsn, State, _Extra) ->
 %%% ------
 
 handle_reset(Name, State, ResetType) ->
-	Reset = fun(F) ->
+	Reset = fun(#fuse { timer_ref = TRef } = F) ->
             case ResetType of
                 reset ->
                     fix(F),
                     NewF = reset_timer(F),
                     {ok, NewF#fuse { melt_history = [] }};
-                timeout ->
+                timeout when TRef /= none ->
                     fix(F),
-                    {ok, F#fuse { melt_history = [], timer_ref = none }}
+                    {ok, F#fuse { melt_history = [], timer_ref = none }};
+                timeout when TRef == none ->
+                    %% No timer installed on this fuse, it is a async fluke
+                    {ok, F}
             end
 	end,
 	{Res, State2} = with_fuse(Name, State, Reset),

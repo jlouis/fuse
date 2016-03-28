@@ -518,7 +518,9 @@ fuse_period_return(#state { installed = Is }, [Name]) ->
 %% -- RECORD MELT HISTORY (INTERNAL CALL) -------------------------
 %%
 record_melt_history_callouts(S, [Name]) ->
-    ?WHEN(melt_state(S, Name) == blown andalso not is_blown(S, Name),
+    ?WHEN(melt_state(S, Name) == blown
+		andalso not is_blown(S, Name)
+		andalso not is_disabled(S, Name),
         ?APPLY(blow_fuse, [Name])).
 
 %% -- VARIOUS SMALLER INTERNAL CALLS --------------------------------

@@ -540,7 +540,7 @@ record_melt_history_features(#state { blown = OldRPs } = S, [Name], _) ->
 %% -- VARIOUS SMALLER INTERNAL CALLS --------------------------------
 %%
 clear_blown_next(#state { blown = Rs } = S, _, [Name]) ->
-    S#state { blown = [N || N <- Rs, N /= Name] }.
+    S#state { blown = [{N, TRef} || {N, TRef} <- Rs, N /= Name] }.
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
@@ -555,11 +555,11 @@ remove_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
     State#state { disabled = Ds -- [Name] }.
 
 blow_fuse_callouts(_S, [Name]) ->
-    ?APPLY(fuse_time_eqc, send_after, [60000, ?WILDCARD, {reset, Name}]),
-    ?APPLY(add_blown, [Name]).
+    ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [60000, ?WILDCARD, {reset, Name}])),
+    ?APPLY(add_blown, [Name, TRef]).
 
-add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
-    S#state { blown = Blown ++ [Name] }.
+add_blown_next(#state { blown = Blown } = S, _, [Name, TRef]) ->
+    S#state { blown = Blown ++ [{Name, TRef}] }.
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
@@ -661,8 +661,8 @@ lookup_fuse(Name, #state { installed = Fs } = State) ->
             end
     end.
 
-is_blown(Name, #state { blown = BlownFuses }) ->
-    lists:member(Name, BlownFuses).
+is_blown(Name, #state { blown = Blown }) ->
+    lists:keymember(Name, 1, Blown).
 
 is_disabled(Name, #state { disabled = Ds }) ->
     lists:member(Name, Ds).
@@ -673,13 +673,11 @@ fuse_intensity(Name, #state { installed = Inst }) ->
     {Name, #{ count := Count } } = lists:keyfind(Name, 1, Inst),
     Count.
 
-
 count_state(N) when N < 0 -> blown;
 count_state(_N) -> ok.
 
 count_melts(Name, #state { melts = Ms }) ->
     length([N || {N, _} <- Ms, N == Name]).
-
 
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
@@ -690,10 +688,6 @@ parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
     #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => parse_cmds(Cmds) }.
 
 parse_cmds({reset, N}) -> N.
-%%
-%%    [{delay, N}, heal];
-%%parse_cmds(Cs) ->
-%%    Cs.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;

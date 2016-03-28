@@ -338,6 +338,7 @@ Development guided by properties leads to a code base which is considerably smal
 * Implementing a full component-based timing model found an off-by-one bug in period calculations.
 * The component based model found situations where timers were set more than once.
 * EQC found a case where timers are not correctly disabled when you call for circuit disables.
+* EQC found an error when doing timer resets.
 
 The monitor model found the following:
 

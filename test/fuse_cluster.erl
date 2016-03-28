@@ -26,9 +26,10 @@ prop_cluster_correct() ->
           {H,S,R} = eqc_cluster:run_commands(?MODULE, Cmds),
           pretty_commands(?MODULE, Cmds, {H,S,R},
             aggregate(with_title('Commands'), command_names(Cmds),
+            collect(eqc_lib:summary('Length'), length(Cmds),
             aggregate(with_title('Features'), eqc_statem:call_features(H),
             features(eqc_statem:call_features(H),
-                R == ok))))
+                R == ok)))))
       end)).
 
 t() -> t(15).

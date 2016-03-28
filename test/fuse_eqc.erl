@@ -96,7 +96,7 @@ g_cmd() ->
 
 %% g_refresh()/0 generates a refresh setting.
 g_refresh() ->
-    oneof([{reset, 60000}]).
+    oneof([{reset, choose(1, 60000)}]).
 
 %% g_options() generates install options
 g_options() ->
@@ -113,7 +113,7 @@ initial_state() -> #state{}.
 %% fuse_reset/2 sends timer messages into the SUT
 %% ---------------------------------------------------------------
 %% Heal a fuse which has been blown in the system.
-fuse_reset(Name) ->
+fuse_reset(Name, _TRef) ->
     fuse_server ! {reset, Name},
     fuse_server:sync(), %% synchronize to avoid a race condition.
     ok.
@@ -121,16 +121,17 @@ fuse_reset(Name) ->
 %% You can reset a fuse if there is a blown fuse in the system.
 fuse_reset_pre(#state { blown = Blown }) -> Blown /= [].
 
-fuse_reset_args(#state { blown = Names }) ->
-    [elements(Names)].
+fuse_reset_args(#state { blown = Blown }) ->
+    ?LET({N, T}, elements(Blown), [N, T]).
 
 %% Fuses will only be reset if their state is among the installed and are blown.
 %% Precondition checking is effective at shrinking down failing models.
-fuse_reset_pre(S, [Name]) ->
+fuse_reset_pre(S, [Name, _]) ->
     is_installed(S, Name) andalso is_blown(S, Name).
 
 %% Note: when a fuse heals, the internal state is reset.
-fuse_reset_callouts(S, [Name]) ->
+fuse_reset_callouts(S, [Name, TRef]) ->
+    ?APPLY(fuse_time_eqc, trigger, [TRef]),
     case is_blown(S, Name) of
         false -> ?EMPTY;
         true ->
@@ -139,13 +140,13 @@ fuse_reset_callouts(S, [Name]) ->
     end,
     ?RET(ok).
 
-fuse_reset_features(S, [Name], _Response) ->
+fuse_reset_features(S, [Name, _], _Response) ->
     case is_blown(S, Name) of
         false -> [{fuse_eqc, r01, heal_non_installed}];
         true -> [{fuse_eqc, r02, {heal_installed_fuse, is_blown(S, Name)}}]
     end.
 
-fuse_reset_return(_S, [_Name]) -> ok.
+fuse_reset_return(_S, [_Name, _TRef]) -> ok.
 
 %% -- INSTALLATION ------------------------------------------------------
 
@@ -546,8 +547,9 @@ add_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
 remove_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
     State#state { disabled = Ds -- [Name] }.
 
-blow_fuse_callouts(_S, [Name]) ->
-    ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [60000, ?WILDCARD, {reset, Name}])),
+blow_fuse_callouts(S, [Name]) ->
+    HealTime = heal_time(S, Name),
+    ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [HealTime, ?WILDCARD, {reset, Name}])),
     ?APPLY(add_blown, [Name, TRef]).
 
 blow_fuse_features(_S, _, _) ->
@@ -673,6 +675,10 @@ has_disabled(#state { disabled = Ds }) -> Ds /= [].
 fuse_intensity(#state { installed = Inst }, Name) ->
     {Name, #{ count := Count } } = lists:keyfind(Name, 1, Inst),
     Count.
+
+heal_time(#state { installed = Inst }, Name) ->
+    {Name, #{ reset := R }} = lists:keyfind(Name, 1, Inst),
+    R.
 
 count_state(N) when N < 0 -> blown;
 count_state(_N) -> ok.

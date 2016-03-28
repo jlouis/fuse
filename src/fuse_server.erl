@@ -236,7 +236,8 @@ handle_reset(Name, State, ResetType) ->
                     {ok, NewF#fuse { melt_history = [] }};
                 timeout when TRef /= none ->
                     fix(F),
-                    {ok, F#fuse { melt_history = [], timer_ref = none }};
+                    NewF = reset_timer(F),
+                    {ok, NewF#fuse { melt_history = [], timer_ref = none }};
                 timeout when TRef == none ->
                     %% No timer installed on this fuse, it is a async fluke
                     {ok, F}

@@ -53,7 +53,7 @@ advance_time_features(_, _, _) -> [{fuse_time, r00, advance_time}].
 
 %% -- PRECONDITIONS --------------------------------------------------------
 %% This is to be used by another component as:
-%% ?APPLY(fuse_time, trigger, []) in a callout specification. This ensures the given command can
+%% ?APPLY(fuse_time_eqc, trigger, []) in a callout specification. This ensures the given command can
 %% only be picked if you can trigger the timer.
 
 can_fire(#state { time = T, timers = TS }, Ref) ->

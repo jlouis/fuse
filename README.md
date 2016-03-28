@@ -24,6 +24,15 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.3.1
+
+Maintenance release. Several grave errors were removed due to the extension of the QuickCheck model to also include timing:
+
+* Timer handling could lead to a (benign) situation where a timer was added twice.
+* Timers and `circuit_disable/1` / `circuit_enable/1` were not playing well together.
+* Make the test support reset periods between 1ms and 60000ms.
+* Make the test support windows between 1ms and 30000ms.
+
 ### 2.3.0
 
 Support the `fault_injection` style fuses. These are fuses that fails automatically at a certain rate, say 1/500 requests, to test systems for robustness against faulty data.

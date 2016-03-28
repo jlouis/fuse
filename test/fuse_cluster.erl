@@ -20,7 +20,7 @@ prop_cluster_correct() ->
         fuse_eqc:setup(),
         fun() -> ok end
     end,
-    ?FORALL(Cmds, eqc_cluster:commands(?MODULE),
+    ?FORALL(Cmds, eqc_statem:more_commands(3, eqc_cluster:commands(?MODULE)),
        begin
           fuse_eqc:cleanup(),
           {H,S,R} = eqc_cluster:run_commands(?MODULE, Cmds),

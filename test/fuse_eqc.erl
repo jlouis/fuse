@@ -82,8 +82,8 @@ g_strategy() ->
             {1, {fault_injection, oneof([real(), int(), g_atom()]), int(), int()}}
         ])},
         oneof([
-            {standard, choose(1, 2), choose(1, 3)},
-            {fault_injection, g_uniform_real(), choose(1,2), choose(1,3)}
+            {standard, choose(1, 2), choose(1, 30000)},
+            {fault_injection, g_uniform_real(), choose(1,2), choose(1,30000)}
         ])
     ).
 
@@ -187,10 +187,10 @@ install_features(S, [Name, Opts], _R) ->
         false -> [{fuse_eqc, r03, installing_invalid_fuse}];
         true ->
             case Opts of
-                {{standard, Count, Period}, _} ->
-                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(S, Name)}}}];
-                {{fault_injection, _, Count, Period}, _} ->
-                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(S, Name)}}}]
+                {{standard, _, _}, _} ->
+                    [{fuse_eqc, r03, {installing_fuse, {standard, is_installed(S, Name)}}}];
+                {{fault_injection, _, _, _}, _} ->
+                    [{fuse_eqc, r03, {installing_fuse, {fault_injection, is_installed(S, Name)}}}]
             end
     end.
 

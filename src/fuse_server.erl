@@ -255,12 +255,12 @@ handle_circuit(Name, Switch, State) ->
             enable ->
                 F1 = F#fuse { enabled = true },
                 fix(F1),
-                NewF = reset_timer(F1),
-                {ok, NewF#fuse { melt_history = [] }};
+                {ok, F1#fuse { melt_history = [] }};
             disable when not En -> {ok, F};
             disable ->
                 blow(F),
-                {ok, F#fuse { enabled = false }}
+                NewF = reset_timer(F),
+                {ok, NewF#fuse { enabled = false }}
         end
     end,
     {Res, State2} = with_fuse(Name, State, Fn),

@@ -126,12 +126,12 @@ fuse_reset_args(#state { blown = Names }) ->
 
 %% Fuses will only be reset if their state is among the installed and are blown.
 %% Precondition checking is effective at shrinking down failing models.
-fuse_reset_pre(#state { blown = Blown } = S, [Name]) ->
-    is_installed(Name, S) andalso lists:member(Name, Blown).
+fuse_reset_pre(S, [Name]) ->
+    is_installed(S, Name) andalso is_blown(S, Name).
 
 %% Note: when a fuse heals, the internal state is reset.
 fuse_reset_callouts(S, [Name]) ->
-    case is_blown(Name, S) of
+    case is_blown(S, Name) of
         false -> ?EMPTY;
         true ->
             ?APPLY(clear_blown, [Name]),
@@ -139,10 +139,10 @@ fuse_reset_callouts(S, [Name]) ->
     end,
     ?RET(ok).
 
-fuse_reset_features(#state { blown = RPs } = S, [Name], _Response) ->
-    case lists:member(Name, RPs) of
+fuse_reset_features(S, [Name], _Response) ->
+    case is_blown(S, Name) of
         false -> [{fuse_eqc, r01, heal_non_installed}];
-        true -> [{fuse_eqc, r02, {heal_installed_fuse, is_blown(Name, S)}}]
+        true -> [{fuse_eqc, r02, {heal_installed_fuse, is_blown(S, Name)}}]
     end.
 
 fuse_reset_return(_S, [_Name]) -> ok.
@@ -187,9 +187,9 @@ install_features(S, [Name, Opts], _R) ->
         true ->
             case Opts of
                 {{standard, Count, Period}, _} ->
-                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(Name, S)}}}];
+                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(S, Name)}}}];
                 {{fault_injection, _, Count, Period}, _} ->
-                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(Name, S)}}}]
+                    [{fuse_eqc, r03, {installing_fuse, Count, Period, {new, is_installed(S, Name)}}}]
             end
     end.
 
@@ -207,10 +207,10 @@ circuit_disable_args(_S) ->
     [g_name()].
 
 circuit_disable_callouts(S, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> ?RET({error, not_found});
         true ->
-            case is_disabled(Name, S) of
+            case is_disabled(S, Name) of
                 false ->
                     ?APPLY(add_disabled, [Name]),
                     ?APPLY(clear_melts, [Name]),
@@ -222,9 +222,9 @@ circuit_disable_callouts(S, [Name]) ->
     end.
 
 circuit_disable_features(S, [Name], _V) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> [{fuse_eqc, r17, disable_uninstalled_fuse}];
-        true -> [{fuse_eqc, r18, disable_installed, {blown, is_blown(Name, S)}}]
+        true -> [{fuse_eqc, r18, disable_installed, {blown, is_blown(S, Name)}}]
     end.
 
 %% circuit_enable/1 reenables a disabled fuse
@@ -242,10 +242,10 @@ circuit_enable_args(S) ->
     [Fuse].
 
 circuit_enable_callouts(S, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
        false -> ?RET({error, not_found});
        true ->
-           case is_disabled(Name, S) of
+           case is_disabled(S, Name) of
                false -> ?RET(ok);
                true ->
                    ?APPLY(remove_disabled, [Name]),
@@ -256,9 +256,9 @@ circuit_enable_callouts(S, [Name]) ->
     end.
 
 circuit_enable_features(S, [Name], _V) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> [{fuse_eqc, r19, enable_uninstalled_fuse}];
-        true -> [{fuse_eqc, r20, enable_installed, {blown, is_blown(Name, S)}}]
+        true -> [{fuse_eqc, r20, enable_installed, {blown, is_blown(S, Name)}}]
     end.
 
 %% -- NORMAL OPERATION -----------------------------------------------
@@ -276,7 +276,7 @@ reset_args(_S) ->
 
 %% Resetting a fuse resets its internal state
 reset_callouts(S, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> ?RET({error, not_found});
         true ->
             ?APPLY(clear_melts, [Name]),
@@ -285,9 +285,9 @@ reset_callouts(S, [Name]) ->
      end.
 
 reset_features(S, [Name], _V) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> [{fuse_eqc, r05, reset_uninstalled_fuse}];
-        true -> [{fuse_eqc, r06, reset_installed, {blown, is_blown(Name, S)}}]
+        true -> [{fuse_eqc, r06, reset_installed, {blown, is_blown(S, Name)}}]
     end.
 
 %%% ask/1 asks about the state of a fuse that exists
@@ -302,7 +302,7 @@ ask_installed_pre(S) -> has_fuses_installed(S).
 
 ask_installed_args(_S) -> [g_name()].
 
-ask_installed_pre(S, [Name]) -> is_installed(Name, S).
+ask_installed_pre(S, [Name]) -> is_installed(S, Name).
 
 ask_installed_features(_S, [_Name], _R) ->
     [{fuse_eqc, r15, ask_installed}].
@@ -324,7 +324,7 @@ ask_callouts(_S, [Name]) ->
     ?RET(Res).
 
 ask_features(S, [Name], _V) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
        true -> [{fuse_eqc, r15, ask_installed}];
        false -> [{fuse_eqc, r16, ask_uninstalled}]
     end.
@@ -361,12 +361,12 @@ run_callouts(_S, [Name, Result, Return, _Fun]) ->
 
 run_features(_S, [_Name, ok, _, _], _R) -> [{fuse_eqc, r07, run_ok_fuse}];
 run_features(S, [Name, melt, _, _], _R) ->
-  case is_installed(Name, S) of
+  case is_installed(S, Name) of
     true ->
-      case is_blown(Name, S) of
+      case is_blown(S, Name) of
         true -> [{fuse_eqc, r08, run_melt_on_blown_fuse}];
         false ->
-           Disables = case is_disabled(Name, S) of
+           Disables = case is_disabled(S, Name) of
                true -> [{fuse_eqc, r21, run_melt_on_disabled_fuse}];
                false -> []
            end,
@@ -389,7 +389,7 @@ melt_installed_pre(S) -> has_fuses_installed(S).
 melt_installed_args(_S) -> [g_name()].
 
 melt_installed_pre(S, [Name]) ->
-    is_installed(Name, S).
+    is_installed(S, Name).
 
 melt_installed_callouts(_S, [Name]) ->
     ?MATCH(Ts, ?APPLY(fuse_time_eqc, monotonic_time, [])),
@@ -410,7 +410,7 @@ melt_args(_S) ->
 
 melt_callouts(S, [Name]) ->
     ?MATCH(Ts, ?APPLY(fuse_time_eqc, monotonic_time, [])),
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> ?EMPTY;
         true ->
             ?APPLY(process_melt, [Name, Ts])
@@ -418,9 +418,9 @@ melt_callouts(S, [Name]) ->
     ?RET(ok).
 
 melt_features(S, [Name], _V) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         true ->
-              Disabled = case is_disabled(Name, S) of
+              Disabled = case is_disabled(S, Name) of
                   true -> [{fuse_eqc, r21, melt_on_disabled_fuse}];
                   false -> []
               end,
@@ -448,14 +448,14 @@ remove_args(#state { installed = Is } = _S) ->
       [ {1, ?SUCHTHAT([F], [g_name()], lists:keymember(F, 1, Is) == false)} ]).
 
 remove_return(S, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         true -> ok;
         false -> {error, not_found}
     end.
 
 %% Removing a fuse, removes it from the list of installed fuses.
 remove_callouts(S, [Name]) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> ?RET({error, not_found});
         true ->
             ?APPLY(remove_disabled, [Name]),
@@ -467,7 +467,7 @@ uninstall_next(#state { installed = Is } = S, _, [Name]) ->
     S#state { installed = lists:keydelete(Name, 1, Is) }.
     
 remove_features(S, [Name], _V) ->
-    case is_installed(Name, S) of
+    case is_installed(S, Name) of
         false -> [{fuse_eqc, r17, remove_uninstalled_fuse}];
         true -> [{fuse_eqc, r18, remove_installed_fuse}]
     end.
@@ -475,7 +475,7 @@ remove_features(S, [Name], _V) ->
 %% -- LOOKUP FUSE STATE (INTERNAL CALL) --------------------------------------------------------
 
 lookup_callouts(S, [Name]) ->
-    case lookup_fuse(Name, S) of
+    case lookup_fuse(S, Name) of
         not_found ->
             ?RET({error, not_found});
         {_, disabled} ->
@@ -517,28 +517,18 @@ fuse_period_return(#state { installed = Is }, [Name]) ->
 
 %% -- RECORD MELT HISTORY (INTERNAL CALL) -------------------------
 %%
-record_melt_history_callouts(#state { blown = Blown } = S, [Name]) ->
-    case melt_state(Name, S) of
-        ok -> ?EMPTY;
-        blown ->
-            case lists:member(Name, Blown) of
-                true -> ?EMPTY;
-                false -> ?APPLY(blow_fuse, [Name])
-            end
-    end.
-
-record_melt_history_features(#state { blown = OldRPs } = S, [Name], _) ->
-    case melt_state(Name, S) of
-        ok -> [];
-        blown ->
-            case lists:member(Name, OldRPs) of
-                true -> [];
-                false -> [{fuse_eqc, r13, blowing_fuse}]
-            end
-    end.
+record_melt_history_callouts(S, [Name]) ->
+    ?WHEN(melt_state(S, Name) == blown andalso not is_blown(S, Name),
+        ?APPLY(blow_fuse, [Name])).
 
 %% -- VARIOUS SMALLER INTERNAL CALLS --------------------------------
 %%
+clear_blown_callouts(S, [Name]) ->
+    case blown_ref(S, Name) of
+        not_found -> ?EMPTY;
+        Ref -> ?APPLY(fuse_time_eqc, cancel_timer, [Ref])
+    end.
+
 clear_blown_next(#state { blown = Rs } = S, _, [Name]) ->
     S#state { blown = [{N, TRef} || {N, TRef} <- Rs, N /= Name] }.
 
@@ -557,6 +547,9 @@ remove_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
 blow_fuse_callouts(_S, [Name]) ->
     ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [60000, ?WILDCARD, {reset, Name}])),
     ?APPLY(add_blown, [Name, TRef]).
+
+blow_fuse_features(_S, _, _) ->
+    [{fuse_eqc, r13, blowing_fuse}].
 
 add_blown_next(#state { blown = Blown } = S, _, [Name, TRef]) ->
     S#state { blown = Blown ++ [{Name, TRef}] }.
@@ -625,7 +618,7 @@ sample() ->
 %%% ---------------------
 
 %% is_installed/2 determines if a given fuse is installed
-is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
+is_installed(#state { installed = Is }, N) -> lists:keymember(N, 1, Is).
 
 %% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
@@ -637,23 +630,23 @@ valid_opts({{fault_injection, Rate, K, R}, {reset, T}})
 valid_opts(_) ->
     false.
 
-melt_state(Name, S) ->
-    count_state(fuse_intensity(Name, S) - count_melts(Name, S)).
+melt_state(S, Name) ->
+    count_state(fuse_intensity(S, Name) - count_melts(S, Name)).
 
-lookup_fuse(Name, #state { installed = Fs } = State) ->
-    case is_disabled(Name, State) of
+lookup_fuse(#state { installed = Fs } = S, Name) ->
+    case is_disabled(S, Name) of
         true -> {Name, disabled};
         false ->
             case lists:keyfind(Name, 1, Fs) of
                 false -> not_found;
                 {_, #{ fuse_type := standard }} ->
-                    Blown = case is_blown(Name, State) of
+                    Blown = case is_blown(S, Name) of
                         true -> blown;
                         false -> ok
                     end,
                     {standard, Blown};
                 {_, #{ fuse_type := fault_injection, rate := Rate }} ->
-                    Blown = case is_blown(Name, State) of
+                    Blown = case is_blown(S, Name) of
                         true -> blown;
                         false -> {gradual, Rate}
                     end,
@@ -661,22 +654,28 @@ lookup_fuse(Name, #state { installed = Fs } = State) ->
             end
     end.
 
-is_blown(Name, #state { blown = Blown }) ->
+is_blown(#state { blown = Blown }, Name) ->
     lists:keymember(Name, 1, Blown).
 
-is_disabled(Name, #state { disabled = Ds }) ->
+blown_ref(#state { blown = Blown }, Name) ->
+    case lists:keyfind(Name, 1, Blown) of
+        false -> not_found;
+        {_, R} -> R
+    end.
+
+is_disabled(#state { disabled = Ds }, Name) ->
     lists:member(Name, Ds).
 
 has_disabled(#state { disabled = Ds }) -> Ds /= [].
 
-fuse_intensity(Name, #state { installed = Inst }) ->
+fuse_intensity(#state { installed = Inst }, Name) ->
     {Name, #{ count := Count } } = lists:keyfind(Name, 1, Inst),
     Count.
 
 count_state(N) when N < 0 -> blown;
 count_state(_N) -> ok.
 
-count_melts(Name, #state { melts = Ms }) ->
+count_melts(#state { melts = Ms }, Name) ->
     length([N || {N, _} <- Ms, N == Name]).
 
 has_fuses_installed(#state { installed = [] }) -> false;

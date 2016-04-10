@@ -304,6 +304,10 @@ QuickCheck allows us to test for requirements of a system. This essentially test
     R20 - Reenable an uninstalled fuse
     R21 - Melting a disabled fuse
 
+    Group reset commands:
+    R22 - Heal command execution
+    R23 - Delay command execution
+
 ## EQC Test harness features:
 
 * Tests the fuse API in all cases with positive testing

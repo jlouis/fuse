@@ -119,10 +119,10 @@ fuse_reset(Name, _TRef) ->
     ok.
 
 %% You can reset a fuse if there is a blown fuse in the system.
-fuse_reset_pre(#state { blown = Blown }) -> Blown /= [].
+fuse_reset_pre(S) -> fuses_with_timers(S) /= [].
 
 fuse_reset_args(S) ->
-    ?LET({N, T}, blown_fuses(S), [N, T]).
+    ?LET({N, T}, elements(fuses_with_timers(S)), [N, T]).
 
 %% Fuses will only be reset if their state is among the installed and are blown.
 %% Precondition checking is effective at shrinking down failing models.
@@ -145,6 +145,9 @@ fuse_reset_features(S, [Name, _], _Response) ->
     end.
 
 fuse_reset_return(_S, [_Name, _TRef]) -> ok.
+
+fuses_with_timers(#state { blown = Blown }) ->
+    [{N, T} || {N, #{ tref := T }} <- Blown].
 
 %% -- INSTALLATION ------------------------------------------------------
 
@@ -569,7 +572,7 @@ exec_reset_callouts(_S, [Name]) ->
 
 add_timer_next(#state { blown = Blown } = S, _, [Name, TRef]) ->
     {value, {Name, MetaData}, Rest} = lists:keytake(Name, 1, Blown),
-    S#state { blown = lists:keystore(Name, 1, Rest, MetaData#{ tref => TRef })}.
+    S#state { blown = lists:keystore(Name, 1, Rest, {Name, MetaData#{ tref => TRef }})}.
 
 next_command_callouts(#state{ blown = Bs }, [Name]) ->
     {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
@@ -582,14 +585,14 @@ next_command_next(#state { blown = Bs } = S, _, [Name]) ->
     {value, {_, #{ cmds := Cmds } = Meta}, Rest} = lists:keytake(Name, 1, Bs),
     case Cmds of
         [] -> S;
-        [_|Xs] -> S#state { blown = lists:keystore(Name, 1, Meta#{ cmds := Xs }, Rest) }
+        [_|Xs] -> S#state { blown = lists:keystore(Name, 1, Rest, {Name, Meta#{ cmds := Xs }}) }
     end.
 
 next_command_features(#state{ blown = Bs }, [Name], _) ->
     {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
     case Cmds of
-        [] -> [{?MODULE, next_command, heal}];
-        [{delay, _}| _] -> [{?MODULE, next_command, delay}]
+        [] -> [{?MODULE, r22, next_command, heal}];
+        [{delay, _}| _] -> [{?MODULE, r23, next_command, delay}]
     end.
 
 %%% Command weight distribution
@@ -734,13 +737,9 @@ parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
 fuse_config(S, Name) ->
     {_, Conf} = lists:keyfind(Name, 1, S#state.installed),
     Conf.
-    
-parse_cmds(Cmds) ->
-    F = fun
-        ({reset, N}) -> {delay, N};
-        (X) -> X
-    end,
-    [F(C) || C <- Cmds].
+
+parse_cmds({reset, K}) -> [{delay, K}];
+parse_cmds(Cmds) -> Cmds.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;

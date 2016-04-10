@@ -121,8 +121,8 @@ fuse_reset(Name, _TRef) ->
 %% You can reset a fuse if there is a blown fuse in the system.
 fuse_reset_pre(#state { blown = Blown }) -> Blown /= [].
 
-fuse_reset_args(#state { blown = Blown }) ->
-    ?LET({N, T}, elements(Blown), [N, T]).
+fuse_reset_args(S) ->
+    ?LET({N, T}, blown_fuses(S), [N, T]).
 
 %% Fuses will only be reset if their state is among the installed and are blown.
 %% Precondition checking is effective at shrinking down failing models.
@@ -134,9 +134,7 @@ fuse_reset_callouts(S, [Name, TRef]) ->
     ?APPLY(fuse_time_eqc, trigger, [TRef]),
     case is_blown(S, Name) of
         false -> ?EMPTY;
-        true ->
-            ?APPLY(clear_blown, [Name]),
-            ?APPLY(clear_melts, [Name])
+        true -> ?APPLY(exec_reset, [Name])
     end,
     ?RET(ok).
 
@@ -533,7 +531,7 @@ clear_blown_callouts(S, [Name]) ->
     end.
 
 clear_blown_next(#state { blown = Rs } = S, _, [Name]) ->
-    S#state { blown = [{N, TRef} || {N, TRef} <- Rs, N /= Name] }.
+    S#state { blown = [{N, Meta} || {N, Meta} <- Rs, N /= Name] }.
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
@@ -547,16 +545,52 @@ add_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
 remove_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
     State#state { disabled = Ds -- [Name] }.
 
-blow_fuse_callouts(S, [Name]) ->
-    HealTime = heal_time(S, Name),
-    ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [HealTime, ?WILDCARD, {reset, Name}])),
-    ?APPLY(add_blown, [Name, TRef]).
+blow_fuse_callouts(_S, [Name]) ->
+    ?APPLY(add_blown, [Name]),
+    ?APPLY(exec_reset, [Name]).
 
 blow_fuse_features(_S, _, _) ->
     [{fuse_eqc, r13, blowing_fuse}].
+    
+add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
+    #{ reset := Cmds } = fuse_config(S, Name),
+    S#state { blown = Blown ++ [{Name, #{ cmds => Cmds }}] }.
 
-add_blown_next(#state { blown = Blown } = S, _, [Name, TRef]) ->
-    S#state { blown = Blown ++ [{Name, TRef}] }.
+exec_reset_callouts(_S, [Name]) ->
+    ?MATCH(Next, ?APPLY(next_command, [Name])),
+    case Next of
+        done ->
+            ?APPLY(clear_blown, [Name]),
+            ?APPLY(clear_melts, [Name]);
+        {delay, Ms} ->
+            ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [Ms, ?WILDCARD, {reset, Name}])),
+            ?APPLY(add_timer, [Name, TRef])
+    end.
+
+add_timer_next(#state { blown = Blown } = S, _, [Name, TRef]) ->
+    {value, {Name, MetaData}, Rest} = lists:keytake(Name, 1, Blown),
+    S#state { blown = lists:keystore(Name, 1, Rest, MetaData#{ tref => TRef })}.
+
+next_command_callouts(#state{ blown = Bs }, [Name]) ->
+    {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
+    case Cmds of
+        [] -> ?RET(done);
+        [{delay, Ms}|_] -> ?RET({delay, Ms})
+    end.
+
+next_command_next(#state { blown = Bs } = S, _, [Name]) ->
+    {value, {_, #{ cmds := Cmds } = Meta}, Rest} = lists:keytake(Name, 1, Bs),
+    case Cmds of
+        [] -> S;
+        [_|Xs] -> S#state { blown = lists:keystore(Name, 1, Meta#{ cmds := Xs }, Rest) }
+    end.
+
+next_command_features(#state{ blown = Bs }, [Name], _) ->
+    {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
+    case Cmds of
+        [] -> [{?MODULE, next_command, heal}];
+        [{delay, _}| _] -> [{?MODULE, next_command, delay}]
+    end.
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
@@ -664,8 +698,11 @@ is_blown(#state { blown = Blown }, Name) ->
 blown_ref(#state { blown = Blown }, Name) ->
     case lists:keyfind(Name, 1, Blown) of
         false -> not_found;
-        {_, R} -> R
+        {_, #{ tref := R }} -> R;
+        {_, _} -> impossible
     end.
+
+blown_fuses(#state { blown = Blown }) -> elements([element(1, B) || B <- Blown]).
 
 is_disabled(#state { disabled = Ds }, Name) ->
     lists:member(Name, Ds).
@@ -694,7 +731,16 @@ parse_opts({{standard, C, P},Cmds}) ->
 parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
     #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => parse_cmds(Cmds) }.
 
-parse_cmds({reset, N}) -> N.
+fuse_config(S, Name) ->
+    {_, Conf} = lists:keyfind(Name, 1, S#state.installed),
+    Conf.
+    
+parse_cmds(Cmds) ->
+    F = fun
+        ({reset, N}) -> {delay, N};
+        (X) -> X
+    end,
+    [F(C) || C <- Cmds].
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;

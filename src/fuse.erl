@@ -49,7 +49,7 @@ install(Name, Options) ->
 %% before you do administration on the service which the fuse protects. This can be used to
 %% e.g., carry out database maintenance. After maintenance, the administrator can reenable
 %% the circuit again.</p>
-%% <p>Disabling a circuit dominates every other operation, except `remove/1`.</p>
+%% <p>Disabling a circuit dominates every other operation, except `remove/1'.</p>
 %% @end.
 -spec circuit_disable(Name) -> ok
    when Name :: atom().

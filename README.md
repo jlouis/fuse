@@ -100,17 +100,19 @@ Read the tutorial in the next section. For a command referece, there is full EDo
 # Tutorial
 
 To use fuse, you must first start the fuse application:
-
-	application:start(fuse).
-	
+```erlang
+application:start(fuse).
+```	
 but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must add a fuse into the system by *installing* a fuse description. This is usually done as part of the `application:start/1` callback:
 
-	Name = database_fuse
-	Strategy = {standard, MaxR, MaxT}, %% See below for types
-	Refresh = {reset, 60000},
-	Opts = {Strategy, Refresh},
-	fuse:install(Name, Opts).
-	
+```erlang
+Name = database_fuse
+Strategy = {standard, MaxR, MaxT}, %% See below for types
+Refresh = {reset, 60000},
+Opts = {Strategy, Refresh},
+fuse:install(Name, Opts).
+```
+
 This sets up a *fuse* with a given Name and a given set of options. Options are given as a tuple with two values. The *strategy* of the fuse and the *refresh* of the fuse.
 
 * Strategy denotes what kind of fuse we have. The default is a `standard` fuse. Such a fuse will tolerate `MaxR` melting attempts in a time window of `MaxT`.
@@ -122,12 +124,13 @@ Fuses are name-created idempotently, so your application can recreate a fuse if 
 * Reinstalling a fuse overwrites the options.
 
 Once you have installed a fuse, you can ask about its state:
-
-	Context = sync,
-	case fuse:ask(database_fuse, Context) of
-		ok -> …;
-		blown -> …
-	end,
+```erlang
+Context = sync,
+case fuse:ask(database_fuse, Context) of
+	ok -> …;
+	blown -> …
+end,
+```
 
 This queries the fuse for its state and lets you handle the case where it is currently blown. The `Context` specifies the context under which the fuses is running (like in mnesia). There are currently two available contexts:
 
@@ -136,12 +139,14 @@ This queries the fuse for its state and lets you handle the case where it is cur
 
 Now suppose you have a working fuse, but you suddenly realize you get errors of the type `{error, timeout}`. Since you think this is a problem, you can tell the system that the fuse is under strain. You do this by *melting* the fuse:
 
-	case emysql:execute(Stmt) of
-	    {error, connection_lock_timeout} ->
-	    	ok = fuse:melt(database_fuse),
-	    	…
-	    …
-	end,
+```erlang
+case emysql:execute(Stmt) of
+    {error, connection_lock_timeout} ->
+    	ok = fuse:melt(database_fuse),
+    	…
+    …
+end,
+```
 	
 The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has cooled down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
 
@@ -150,15 +155,17 @@ The fuse has a policy, so once it has been melted too many times, it will blow f
 
 Another way to run the fuse is to use a wrapper function. Suppose you have a function with the following spec:
 
-	-spec exec() -> {ok, Result} | {melt, Result}
-	  when Result :: term().
+```erlang
+-spec exec() -> {ok, Result} | {melt, Result}
+  when Result :: term().
 
-	%% To use this function:
-	Context = sync,
-	case fuse:run(Name, fun exec/0, Context) of
-		{ok, Result} -> …;
-		blown -> …
-	end,
+%% To use this function:
+Context = sync,
+case fuse:run(Name, fun exec/0, Context) of
+	{ok, Result} -> …;
+	blown -> …
+end,
+```
 
 this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs. As with `ask/1`, you must supply your desired context.
 
@@ -172,11 +179,11 @@ There are a couple of different fuse types in the system:
 # Administrative commands
 
 An administrator can manually disable/reenable fuses through the following commands:
-
-	ok = fuse:circuit_disable(Name),
-	…
-	ok = fuse:circuit_enable(Name),
-	
+```erlang
+ok = fuse:circuit_disable(Name),
+…
+ok = fuse:circuit_enable(Name),
+```	
 When you disable a circuit, you blow the fuse until you enable the circuit again.
 
 The interaction rules for disables/enables is that they dominate every other command except the call to `remove/1`. That is, even reinstalling an already installed fuse will not reenable it. The only way is to either call `fuse:circuit_enable/1` or by first `fuse:remove/1`'ing the fuse and then executing an `install/1` command.
@@ -208,13 +215,13 @@ Maintains [exometer](https://github.com/Feuerlabs/exometer) spirals `[fuse, foo,
 ### Using a plugin
 
 By default, fuse uses the `fuse_stats_ets` plugin. To use another, set it up in the environment with e.g.
-
-    application:set_env(fuse, stats_plugin, fuse_stats_folsom).
-
+```erlang
+application:set_env(fuse, stats_plugin, fuse_stats_folsom).
+```
 or in a `.config` as
-
-    {fuse, [ {stats_plugin, fuse_stats_folsom} ] }
-
+```erlang
+{fuse, [ {stats_plugin, fuse_stats_folsom} ] }
+```
 Note that it's up to you to arrange your application's dependencies such that plugin applications like folsom or exometer are available and started. Fuse has no direct dependency on either folsom or exometer.
 
 ### Writing a plugin

@@ -560,6 +560,9 @@ add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
     S#state { blown = Blown ++ [{Name, #{ cmds => Cmds }}] }.
 
 exec_reset_callouts(_S, [Name]) ->
+    ?APPLY(process_commands, [Name]).
+    
+process_commands_callouts(_S, [Name]) ->
     ?MATCH(Next, ?APPLY(next_command, [Name])),
     case Next of
         done ->
@@ -578,6 +581,8 @@ next_command_callouts(#state{ blown = Bs }, [Name]) ->
     {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
     case Cmds of
         [] -> ?RET(done);
+        [{gradual, Level}|_] -> ?RET({gradual, Level});
+        [{barrier, Term}|_] -> ?RET({barrier, Term});
         [{delay, Ms}|_] -> ?RET({delay, Ms})
     end.
 

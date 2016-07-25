@@ -212,6 +212,10 @@ Maintains [folsom](https://github.com/boundary/folsom) spirals `foo.ok`, `foo.bl
 
 Maintains [exometer](https://github.com/Feuerlabs/exometer) spirals `[fuse, foo, ok]`, `[fuse, foo, blown]` and `[fuse, foo, melt]`.
 
+### `fuse_stats_prometheus`
+
+Maintains [prometheus](https://github.com/deadtrickster/prometheus.erl) counters `foo_responses_total[type="ok|blown"]` and `foo_melts_total`.
+
 ### Using a plugin
 
 By default, fuse uses the `fuse_stats_ets` plugin. To use another, set it up in the environment with e.g.

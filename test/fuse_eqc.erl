@@ -167,12 +167,12 @@ install_args(_S) ->
 %% When installing new fuses, the internal state is reset for the fuse.
 %% Also, consider if the installed is valid at all.
 install_callouts(_S, [Name, Opts]) ->
-    #{ period := P } = parse_opts(Opts),
+    #{ period := P } = POpts = parse_opts(Opts),
     ?APPLY(fuse_time_eqc, convert_time_unit, [P, milli_seconds, native]),
     case valid_opts(Opts) of
         false -> ?RET(badarg);
         true ->
-            T = {Name, parse_opts(Opts)},
+            T = {Name, POpts},
             ?APPLY(install_fuse, [Name, T]),
             ?APPLY(clear_blown, [Name]),
             ?APPLY(clear_melts, [Name]),
@@ -478,15 +478,11 @@ remove_features(S, [Name], _V) ->
 
 lookup_callouts(S, [Name]) ->
     case lookup_fuse(S, Name) of
-        not_found ->
-            ?RET({error, not_found});
-        {_, disabled} ->
-            ?RET(blown);
-        {_, blown} ->
-            ?RET(blown);
-        {standard, ok} ->
-            ?RET(ok);
-        {fault_injection, {gradual, X}} ->
+        not_found -> ?RET({error, not_found});
+        disabled -> ?RET(blown);
+        blown -> ?RET(blown);
+        ok -> ?RET(ok);
+        {gradual, X} ->
             ?MATCH(Rand, ?CALLOUT(fuse_rand, uniform, [], g_split_float(X))),
             case Rand < X of
                 true -> ?RET(blown);
@@ -556,7 +552,7 @@ blow_fuse_features(_S, _, _) ->
     [{fuse_eqc, r13, blowing_fuse}].
     
 add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
-    #{ reset := Cmds } = fuse_config(S, Name),
+    #{ command_list := Cmds } = fuse_config(S, Name),
     S#state { blown = Blown ++ [{Name, #{ cmds => Cmds }}] }.
 
 exec_reset_callouts(_S, [Name]) ->
@@ -681,23 +677,21 @@ melt_state(S, Name) ->
 
 lookup_fuse(#state { installed = Fs } = S, Name) ->
     case is_disabled(S, Name) of
-        true -> {Name, disabled};
+        true -> disabled;
         false ->
             case lists:keyfind(Name, 1, Fs) of
                 false -> not_found;
-                {_, #{ fuse_type := standard }} ->
-                    Blown = case is_blown(S, Name) of
-                        true -> blown;
-                        false -> ok
-                    end,
-                    {standard, Blown};
-                {_, #{ fuse_type := fault_injection, rate := Rate }} ->
-                    Blown = case is_blown(S, Name) of
-                        true -> blown;
-                        false -> {gradual, Rate}
-                    end,
-                    {fault_injection, Blown}
+                {_, #{ state := standard }} ->
+                    lookup_blown(S, Name, ok);
+                {_, #{ state := {fault_injection, Rate} }} ->
+                    lookup_blown(S, Name, {gradual, Rate})
             end
+    end.
+
+lookup_blown(S, Name, OK) ->
+    case is_blown(S, Name) of
+        false -> OK;
+        true -> blown
     end.
 
 is_blown(#state { blown = Blown }, Name) ->
@@ -735,9 +729,9 @@ has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
 parse_opts({{standard, C, P},Cmds}) ->
-    #{ fuse_type => standard, count => C, period => P, reset => parse_cmds(Cmds) };
+    #{ state => standard, count => C, period => P, command_list => parse_cmds(Cmds) };
 parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
-    #{ fuse_type => fault_injection, rate => Rate, count => C, period => P, reset => parse_cmds(Cmds) }.
+    #{ state => {fault_injection, Rate}, count => C, period => P, command_list => parse_cmds(Cmds) }.
 
 fuse_config(S, Name) ->
     {_, Conf} = lists:keyfind(Name, 1, S#state.installed),
@@ -748,6 +742,7 @@ parse_cmds(Cmds) -> Cmds.
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;
-in_period(Ts, Now, Period) when Now >= Ts -> (Now - Ts) < Period.
+in_period(Ts, Now, Period) when Now >= Ts ->
+    (Now - Ts) < Period.
 
 -endif.

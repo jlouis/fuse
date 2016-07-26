@@ -33,6 +33,10 @@ Maintenance release. Several grave errors were removed due to the extension of t
 * Make the test support reset periods between 1ms and 60000ms.
 * Make the test support windows between 1ms and 30000ms.
 
+### 2.4.0
+
+Add support for monitoring fuses through prometheus.io. Contribution by Ilya Khaprov.
+
 ### 2.3.0
 
 Support the `fault_injection` style fuses. These are fuses that fails automatically at a certain rate, say 1/500 requests, to test systems for robustness against faulty data.
@@ -89,6 +93,7 @@ Several companies should be thanked:
 List of people who have made contributions to the project of substantial size:
 
 * Cian Synnott
+* Ilya Khaprov
 * Jesper Louis Andersen
 * Thomas Arts
 * Zeeshan Lakhani

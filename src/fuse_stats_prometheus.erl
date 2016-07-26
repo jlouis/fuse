@@ -10,8 +10,8 @@
 
 %% @doc Initialize prometheus counters for  `Name'.
 %% Exports the following metrics:
-%% `Name_responses_total[type]`
-%% `Name_melts_total`
+%% `Name_responses_total[type]'
+%% `Name_melts_total'
 %% Uses Default Registry.
 -spec init(Name :: atom()) -> ok.
 init(Name) ->

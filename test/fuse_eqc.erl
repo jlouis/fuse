@@ -681,17 +681,21 @@ lookup_fuse(#state { installed = Fs } = S, Name) ->
         false ->
             case lists:keyfind(Name, 1, Fs) of
                 false -> not_found;
-                {_, #{ state := standard }} ->
-                    lookup_blown(S, Name, ok);
-                {_, #{ state := {fault_injection, Rate} }} ->
-                    lookup_blown(S, Name, {gradual, Rate})
+                {_, #{ state := standard, command_list := CL }} ->
+                    lookup_blown(S, Name, ok, CL);
+                {_, #{ state := {fault_injection, command_list := CL } }} ->
+                    lookup_blown(S, Name, {gradual, Rate}, CL)
             end
     end.
 
-lookup_blown(S, Name, OK) ->
+lookup_blown(S, Name, OK, Cmds) ->
     case is_blown(S, Name) of
         false -> OK;
-        true -> blown
+        true ->
+            case Cmds of
+                [{delay, _} | _] -> blown
+            end
+            
     end.
 
 is_blown(#state { blown = Blown }, Name) ->

@@ -8,7 +8,7 @@
 
 -define(MELTS_COUNTER_NAME(NameBin), <<NameBin/binary, "_melts_total">>).
 
-%% @doc Initialize prometheus counters for  `Name'.
+%% @doc Initializes prometheus counters for  `Name'.
 %% Exports the following metrics:
 %% <ul>
 %% <li>`name_responses_total[type]'</li>
@@ -26,7 +26,7 @@ init(Name) ->
                           {help, <<NameBin/binary, " fuse melts counter">>}]),
   ok.
 
-%% @doc Increment `Name''s `Counter'.
+%% @doc Increments `Name''s `Counter'.
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
   NameBin = atom_to_binary(Name, utf8),

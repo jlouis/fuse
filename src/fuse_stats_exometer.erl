@@ -4,7 +4,7 @@
 -behaviour(fuse_stats_plugin).
 -export([init/1, increment/2]).
 
-%% @doc Initialize exometer for `Name'.
+%% @doc Initializes exometer for `Name'.
 -spec init(Name :: atom()) -> ok.
 init(Name) ->
     _ = exometer:new(metric(Name, ok), spiral),
@@ -12,7 +12,7 @@ init(Name) ->
     _ = exometer:new(metric(Name, melt), spiral),
     ok.
 
-%% @doc Increment `Name''s `Counter' spiral.
+%% @doc Increments `Name''s `Counter' spiral.
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
     _ = exometer:update(metric(Name, Counter), 1),

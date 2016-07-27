@@ -20,7 +20,7 @@
 %%% setup the plugin's statistics store.
 %%%
 %%% === increment/2 ===
-%%% Increment a counter.
+%%% Increments a counter.
 %%% <ul>
 %%% <li>`Name' is the fuse name.</li>
 %%% <li>`Counter' is one of `ok', `blown' or `melt'.</li>

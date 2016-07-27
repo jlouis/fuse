@@ -44,7 +44,7 @@ install(Name, Options) ->
     options_ok(Options),
     fuse_server:install(Name, Options).
 
-%% @doc Administratively disable a circuit.
+%% @doc Administratively disables a circuit.
 %% <p>This function is intended to be used administratively, when you want to break the fuse
 %% before you do administration on the service which the fuse protects. This can be used to
 %% e.g., carry out database maintenance. After maintenance, the administrator can reenable

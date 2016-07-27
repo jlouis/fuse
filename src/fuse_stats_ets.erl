@@ -19,13 +19,13 @@ init(Name) ->
                              {metric(Name, melt), 0}]),
     ok.
 
-%% @doc Increment `Name's `Counter'.
+%% @doc Increment `Name''s `Counter'.
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
     _ = ets:update_counter(?MODULE, metric(Name, Counter), 1),
     ok.
 
-%% @doc Fetch `Name's counters.
+%% @doc Fetch `Name''s counters.
 -spec counters(Name :: atom()) -> [proplists:property()].
 counters(Name) ->
     [{Counter, ets:lookup_element(?MODULE, metric(Name, Counter), 2)} ||

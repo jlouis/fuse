@@ -12,7 +12,7 @@ init(Name) ->
     _ = exometer:new(metric(Name, melt), spiral),
     ok.
 
-%% @doc Increment `Name's `Counter' spiral.
+%% @doc Increment `Name''s `Counter' spiral.
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
     _ = exometer:update(metric(Name, Counter), 1),

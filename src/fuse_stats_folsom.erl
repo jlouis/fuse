@@ -12,7 +12,7 @@ init(Name) ->
     _ = folsom_metrics:new_spiral(metric(Name, melt)),
     ok.
 
-%% @doc Increment `Name's `Counter' spiral.
+%% @doc Increment `Name''s `Counter' spiral.
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
     _ = folsom_metrics:notify({metric(Name, Counter), 1}),

@@ -32,8 +32,8 @@
 -export_type([fuse_context/0, fuse_options/0]).
 
 %% @doc Adds a new fuse to the running system.
-%% A call `install(N, Os)' will add a new fuse under the name `N' with options given by `Os'. Note that the options must match
-%% the correct type, or a `badarg' error will be thrown.
+%% <p>A call `install(N, Os)' will add a new fuse under the name `N' with options given by `Os'. Note that the options must match
+%% the correct type, or a `badarg' error will be thrown.</p>
 %% @end
 -spec install(Name, Options) -> ok | reset | {error, Reason}
 	when
@@ -67,7 +67,7 @@ circuit_enable(Name) ->
     fuse_server:circuit(Name, enable).
 
 %% @doc Runs a thunk under a given fuse.
-%% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'.
+%% <p>Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'.</p>
 %% @end
 -spec run(Name, fun (() -> {ok, Result} | {melt, Result}), fuse_context() ) -> {ok, Result} | blown | {error, not_found}
     when
@@ -77,15 +77,15 @@ run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
 
 
 %% @doc Queries the state of a fuse.
-%% Given `ask(N)' we ask the fuse state for the name `N'. Returns the fuse state, either `ok' or `blown'.
-%% If there is no such fuse, returns `{error, not_found}'.
+%% <p>Given `ask(N)' we ask the fuse state for the name `N'. Returns the fuse state, either `ok' or `blown'.
+%% If there is no such fuse, returns `{error, not_found}'.</p>
 %% @end
 -spec ask(Name, fuse_context()) -> ok | blown | {error, not_found}
   when Name :: atom().
 ask(Name, Context) -> fuse_server:ask(Name, Context).
 
 %% @doc Resets a fuse.
-%% Given `reset(N)' this resets the fuse under the name `N'. The fuse will be unbroken with no melts.
+%% <p>Given `reset(N)' this resets the fuse under the name `N'. The fuse will be unbroken with no melts.</p>
 %% @end
 -spec reset(Name) -> ok | {error, not_found}
   when Name :: atom().
@@ -93,7 +93,7 @@ reset(Name) ->
     fuse_server:reset(Name).
 
 %% @doc Melts a fuse a little bit.
-%% A call to `melt(N)' will melt fuse `N'. This call always returns `ok' and it is currently implemented synchronously.
+%% <p>A call to `melt(N)' will melt fuse `N'. This call always returns `ok' and it is currently implemented synchronously.</p>
 %% @end
 -spec melt(Name) -> ok
   when Name :: atom().
@@ -101,7 +101,7 @@ melt(Name) ->
 	fuse_server:melt(Name).
 
 %% @doc Removes a fuse.
-%% Given `remove(N)' this removes the fuse under the name `N'. This fuse will no longer exist.
+%% <p>Given `remove(N)' this removes the fuse under the name `N'. This fuse will no longer exist.</p>
 %% @end
 -spec remove(Name) -> ok
   when Name :: atom().

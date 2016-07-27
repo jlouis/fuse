@@ -4,7 +4,7 @@
 -export([init/1, increment/2, counters/1]).
 
 %% @doc Initialize `Name'.
-%% Creates the stats ETS table if it doesn't already exist.
+%% <p>Creates the stats ETS table if it doesn't already exist.</p>
 -spec init(Name :: atom()) -> ok.
 init(Name) ->
     _ = case ets:info(?MODULE) of

@@ -12,7 +12,8 @@
           type,
           count :: non_neg_integer(),
           period :: pos_integer(),
-          state = ok :: ok | blown,
+          state = ok,
+          timer = undefined,
           configuration,
           disabled = false
 }).
@@ -20,7 +21,6 @@
 %%% Model state.
 -record(state, {
           melts = [], % History of current melts issued to the SUT
-          blown = [], % List of currently blown fuses
           disabled = [], % List of fuses which are currently manually disabled
           installed = [] :: [#fuse{}] % List of installed fuses, with their configuration.
 }).
@@ -155,8 +155,8 @@ fuse_reset_features(S, [Name, _], _Response) ->
 
 fuse_reset_return(_S, [_Name, _TRef]) -> ok.
 
-fuses_with_timers(#state { blown = Blown }) ->
-    [{N, T} || {N, #{ tref := T }} <- Blown].
+fuses_with_timers(#state { installed = Installed }) ->
+    [{N, Ref} || {N, #fuse{ timer = Ref }} <- Installed, Ref /= undefined].
 
 %% -- INSTALLATION ------------------------------------------------------
 
@@ -535,11 +535,13 @@ record_melt_history_callouts(S, [Name]) ->
 clear_blown_callouts(S, [Name]) ->
     case blown_ref(S, Name) of
         not_found -> ?EMPTY;
-        Ref -> ?APPLY(fuse_time_eqc, cancel_timer, [Ref])
+        ok -> ?EMPTY;
+        Ref ->
+            ?APPLY(fuse_time_eqc, cancel_timer, [Ref])
     end.
 
-clear_blown_next(#state { blown = Rs } = S, _, [Name]) ->
-    S#state { blown = [{N, Meta} || {N, Meta} <- Rs, N /= Name] }.
+clear_blown_next(S, _, [Name]) ->
+    with_fuse(S, Name, fun(F) -> F#fuse{ state = ok } end).
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
@@ -560,9 +562,11 @@ blow_fuse_callouts(_S, [Name]) ->
 blow_fuse_features(_S, _, _) ->
     [{fuse_eqc, r13, blowing_fuse}].
     
-add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
-    #fuse{ configuration = Cmds } = fuse(S, Name),
-    S#state { blown = Blown ++ [{Name, #{ cmds => Cmds }}] }.
+add_blown_next(S, _, [Name]) ->
+    with_fuse(S, Name,
+              fun
+                  (F) -> F#fuse { state = {blown, F#fuse.configuration}}
+              end).
 
 exec_reset_callouts(_S, [Name]) ->
     ?APPLY(process_commands, [Name]).
@@ -578,31 +582,37 @@ process_commands_callouts(_S, [Name]) ->
             ?APPLY(add_timer, [Name, TRef])
     end.
 
-add_timer_next(#state { blown = Blown } = S, _, [Name, TRef]) ->
-    {value, {Name, MetaData}, Rest} = lists:keytake(Name, 1, Blown),
-    S#state { blown = lists:keystore(Name, 1, Rest, {Name, MetaData#{ tref => TRef }})}.
+add_timer_next(S, _, [Name, TRef]) ->
+    with_fuse(S, Name,
+              fun
+                  (#fuse { state = {blown, Cmds}, timer = undefined } = F) ->
+                      F#fuse { state = {blown, Cmds}, timer = TRef}
+              end).
 
-next_command_callouts(#state{ blown = Bs }, [Name]) ->
-    {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
-    case Cmds of
+next_command_callouts(S, [Name]) ->
+    #fuse { state = {blown, Cs} } = fuse(S, Name),
+    case Cs of
         [] -> ?RET(done);
         [{gradual, Level}|_] -> ?RET({gradual, Level});
         [{barrier, Term}|_] -> ?RET({barrier, Term});
         [{delay, Ms}|_] -> ?RET({delay, Ms})
     end.
 
-next_command_next(#state { blown = Bs } = S, _, [Name]) ->
-    {value, {_, #{ cmds := Cmds } = Meta}, Rest} = lists:keytake(Name, 1, Bs),
-    case Cmds of
-        [] -> S;
-        [_|Xs] -> S#state { blown = lists:keystore(Name, 1, Rest, {Name, Meta#{ cmds := Xs }}) }
-    end.
+next_command_next(S, _, [Name]) ->
+    with_fuse(S, Name,
+              fun
+                  (#fuse { state = {blown, Cmds}} = F) ->
+                      case Cmds of
+                          [] -> F#fuse { state = {blown, []} };
+                          [_|Xs] -> F#fuse { state = {blown, Xs}}
+                      end
+              end).
 
-next_command_features(#state{ blown = Bs }, [Name], _) ->
-    {_, #{ cmds := Cmds }} = lists:keyfind(Name, 1, Bs),
-    case Cmds of
-        [] -> [{?MODULE, r22, next_command, heal}];
-        [{delay, _}| _] -> [{?MODULE, r23, next_command, delay}]
+next_command_features(S, [Name], _) ->
+    #fuse { state = FuseState } = fuse(S, Name),
+    case FuseState of
+        {blown, []} -> [{?MODULE, r22, next_command, heal}];
+        {blown, [{delay, _} | _]} -> [{?MODULE, r23, next_command, delay}]
     end.
 
 %%% Command weight distribution
@@ -707,18 +717,29 @@ lookup_blown(S, Name, OK, Cmds) ->
             
     end.
 
-is_blown(#state { blown = Blown }, Name) ->
-    lists:keymember(Name, 1, Blown).
-
-blown_ref(#state { blown = Blown }, Name) ->
-    case lists:keyfind(Name, 1, Blown) of
-        false -> not_found;
-        {_, #{ tref := R }} -> R;
-        {_, _} -> impossible
+is_blown(S, Name) ->
+    #fuse { state = FS } = fuse(S, Name),
+    case FS of
+        {blown, _} -> true;
+        _ -> false
     end.
 
-blown_fuses(#state { blown = Blown }) -> elements([element(1, B) || B <- Blown]).
+blown_ref(S, Name) ->
+    case fuse(S, Name) of
+        not_found -> not_found;
+        #fuse { state = {blown, _}, timer = undefined } -> impossible;
+        #fuse { state = {blown, _}, timer = R } -> R;
+        #fuse { state = ok } -> ok
+    end.
 
+installed_fuse_names(#state { installed = Is }) ->
+    [N || {N, _} <- Is].
+
+blown_fuses(S) ->
+    Names = installed_fuse_names(S),
+    [N || N <- Names,
+          is_blown(S, N)].
+          
 is_disabled(#state { disabled = Ds }, Name) ->
     lists:member(Name, Ds).
 
@@ -759,8 +780,17 @@ parse_fuse({{fault_injection, Rate, C, P}, Cmds}) ->
       }.
 
 fuse(S, Name) ->
-    {_, Conf} = lists:keyfind(Name, 1, S#state.installed),
-    Conf.
+    case lists:keyfind(Name, 1, S#state.installed) of
+        false -> not_found;
+        {_, Conf} -> Conf
+    end.
+
+with_fuse(S, Name, Fun) ->
+    F = fuse(S, Name),
+    NF = Fun(F),
+    S#state { installed =
+                  lists:keystore(Name, 1, S#state.installed, {Name, NF})
+            }.
 
 parse_cmds({reset, K}) -> [{delay, K}];
 parse_cmds(Cmds) -> Cmds.

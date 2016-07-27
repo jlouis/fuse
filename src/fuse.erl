@@ -31,7 +31,7 @@
 
 -export_type([fuse_context/0, fuse_options/0]).
 
-%% @doc install/2 adds a new fuse to the running system.
+%% @doc Adds a new fuse to the running system.
 %% A call `install(N, Os)' will add a new fuse under the name `N' with options given by `Os'. Note that the options must match
 %% the correct type, or a `badarg' error will be thrown.
 %% @end
@@ -44,7 +44,7 @@ install(Name, Options) ->
     options_ok(Options),
     fuse_server:install(Name, Options).
 
-%% @doc circuit_disable/1 administratively disable a circuit.
+%% @doc Administratively disable a circuit.
 %% <p>This function is intended to be used administratively, when you want to break the fuse
 %% before you do administration on the service which the fuse protects. This can be used to
 %% e.g., carry out database maintenance. After maintenance, the administrator can reenable
@@ -56,7 +56,7 @@ install(Name, Options) ->
 circuit_disable(Name) ->
     fuse_server:circuit(Name, disable).
 
-%% @doc circuit_enable/1 administratively (re-)enables a fuse.
+%% @doc Administratively (re-)enables a fuse.
 %% <p>This call is used to reenable a disabled circuit again. Always returns ok and is idempotent.</p>
 %% <p>Use this command at the point in time where you are done with administrative fixes and want
 %% to resume normal operation of the fuse.</p>
@@ -66,7 +66,7 @@ circuit_disable(Name) ->
 circuit_enable(Name) ->
     fuse_server:circuit(Name, enable).
 
-%% @doc run/2 runs a thunk under a given fuse.
+%% @doc Runs a thunk under a given fuse.
 %% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'.
 %% @end
 -spec run(Name, fun (() -> {ok, Result} | {melt, Result}), fuse_context() ) -> {ok, Result} | blown | {error, not_found}
@@ -76,7 +76,7 @@ circuit_enable(Name) ->
 run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
 
 
-%% @doc ask/1 queries the state of a fuse.
+%% @doc Queries the state of a fuse.
 %% Given `ask(N)' we ask the fuse state for the name `N'. Returns the fuse state, either `ok' or `blown'.
 %% If there is no such fuse, returns `{error, not_found}'.
 %% @end
@@ -84,7 +84,7 @@ run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
   when Name :: atom().
 ask(Name, Context) -> fuse_server:ask(Name, Context).
 
-%% @doc reset/1 resets a fuse.
+%% @doc Resets a fuse.
 %% Given `reset(N)' this resets the fuse under the name `N'. The fuse will be unbroken with no melts.
 %% @end
 -spec reset(Name) -> ok | {error, not_found}
@@ -92,7 +92,7 @@ ask(Name, Context) -> fuse_server:ask(Name, Context).
 reset(Name) ->
     fuse_server:reset(Name).
 
-%% @doc melt/1 melts a fuse a little bit.
+%% @doc Melts a fuse a little bit.
 %% A call to `melt(N)' will melt fuse `N'. This call always returns `ok' and it is currently implemented synchronously.
 %% @end
 -spec melt(Name) -> ok
@@ -100,7 +100,7 @@ reset(Name) ->
 melt(Name) ->
 	fuse_server:melt(Name).
 
-%% @doc remove/1 removs a fuse.
+%% @doc Removes a fuse.
 %% Given `remove(N)' this removes the fuse under the name `N'. This fuse will no longer exist.
 %% @end
 -spec remove(Name) -> ok

@@ -7,13 +7,22 @@
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
+%%% State of Fuses.
+-record(fuse, {
+          type,
+          count :: non_neg_integer(),
+          period :: pos_integer(),
+          state = ok :: ok | blown,
+          configuration,
+          disabled = false
+}).
+          
 %%% Model state.
 -record(state, {
           melts = [], % History of current melts issued to the SUT
           blown = [], % List of currently blown fuses
           disabled = [], % List of fuses which are currently manually disabled
-          installed = [], % List of installed fuses, with their configuration.
-          reqs = [] %% Record the requirements we test
+          installed = [] :: [#fuse{}] % List of installed fuses, with their configuration.
 }).
 
 -define(CONTEXT, sync).
@@ -167,12 +176,12 @@ install_args(_S) ->
 %% When installing new fuses, the internal state is reset for the fuse.
 %% Also, consider if the installed is valid at all.
 install_callouts(_S, [Name, Opts]) ->
-    #{ period := P } = POpts = parse_opts(Opts),
+    #fuse{ period = P } = Fuse = parse_fuse(Opts),
     ?APPLY(fuse_time_eqc, convert_time_unit, [P, milli_seconds, native]),
     case valid_opts(Opts) of
         false -> ?RET(badarg);
         true ->
-            T = {Name, POpts},
+            T = {Name, Fuse},
             ?APPLY(install_fuse, [Name, T]),
             ?APPLY(clear_blown, [Name]),
             ?APPLY(clear_melts, [Name]),
@@ -510,7 +519,7 @@ expire_melts_features(#state { melts = Ms }, [Who, Period, Now], _) ->
 
 %% -- COMPUTING FUSE PERIODS (INTERNAL CALL) ------------------------------
 fuse_period_return(#state { installed = Is }, [Name]) ->
-    {_, #{ period := Period }} = lists:keyfind(Name, 1, Is),
+    {_, #fuse{ period = Period }} = lists:keyfind(Name, 1, Is),
     Period.
 
 %% -- RECORD MELT HISTORY (INTERNAL CALL) -------------------------
@@ -552,7 +561,7 @@ blow_fuse_features(_S, _, _) ->
     [{fuse_eqc, r13, blowing_fuse}].
     
 add_blown_next(#state { blown = Blown } = S, _, [Name]) ->
-    #{ command_list := Cmds } = fuse_config(S, Name),
+    #fuse{ configuration = Cmds } = fuse(S, Name),
     S#state { blown = Blown ++ [{Name, #{ cmds => Cmds }}] }.
 
 exec_reset_callouts(_S, [Name]) ->
@@ -681,9 +690,9 @@ lookup_fuse(#state { installed = Fs } = S, Name) ->
         false ->
             case lists:keyfind(Name, 1, Fs) of
                 false -> not_found;
-                {_, #{ state := standard, command_list := CL }} ->
+                {_, #fuse{ type = standard, configuration = CL }} ->
                     lookup_blown(S, Name, ok, CL);
-                {_, #{ state := {fault_injection, command_list := CL } }} ->
+                {_, #fuse{ type = {fault_injection, Rate}, configuration = CL } } ->
                     lookup_blown(S, Name, {gradual, Rate}, CL)
             end
     end.
@@ -716,7 +725,7 @@ is_disabled(#state { disabled = Ds }, Name) ->
 has_disabled(#state { disabled = Ds }) -> Ds /= [].
 
 fuse_intensity(#state { installed = Inst }, Name) ->
-    {Name, #{ count := Count } } = lists:keyfind(Name, 1, Inst),
+    {Name, #fuse{ count = Count } } = lists:keyfind(Name, 1, Inst),
     Count.
 
 heal_time(#state { installed = Inst }, Name) ->
@@ -732,12 +741,24 @@ count_melts(#state { melts = Ms }, Name) ->
 has_fuses_installed(#state { installed = [] }) -> false;
 has_fuses_installed(#state { installed = [_|_]}) -> true.
 
-parse_opts({{standard, C, P},Cmds}) ->
-    #{ state => standard, count => C, period => P, command_list => parse_cmds(Cmds) };
-parse_opts({{fault_injection, Rate, C, P}, Cmds}) ->
-    #{ state => {fault_injection, Rate}, count => C, period => P, command_list => parse_cmds(Cmds) }.
+parse_fuse({{standard, C, P},Cmds}) ->
+    #fuse {
+       state = ok,
+       type = standard,
+       count = C,
+       period = P,
+       configuration = parse_cmds(Cmds)
+      };
+parse_fuse({{fault_injection, Rate, C, P}, Cmds}) ->
+    #fuse {
+       state = ok,
+       type = {fault_injection, Rate},
+       count = C,
+       period = P,
+       configuration = parse_cmds(Cmds)
+      }.
 
-fuse_config(S, Name) ->
+fuse(S, Name) ->
     {_, Conf} = lists:keyfind(Name, 1, S#state.installed),
     Conf.
 

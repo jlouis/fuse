@@ -1,4 +1,4 @@
-%%% @doc fuse_stats_folsom - use folsom_metrics spirals for fuse stats.
+%%% @doc fuse_stats_folsom - use <a href="https://github.com/boundary/folsom">folsom</a> spirals for fuse stats.
 %%% Assumes that you have already arranged to start folsom.
 -module(fuse_stats_folsom).
 -behaviour(fuse_stats_plugin).

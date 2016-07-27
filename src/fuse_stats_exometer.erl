@@ -1,4 +1,4 @@
-%%% @doc fuse_stats_exometer - use exometer spirals for fuse stats.
+%%% @doc fuse_stats_exometer - use <a href="https://github.com/Feuerlabs/exometer">exometer</a> spirals for fuse stats.
 %%% Assumes that you have already arranged to start exometer.
 -module(fuse_stats_exometer).
 -behaviour(fuse_stats_plugin).

@@ -1,4 +1,4 @@
-%%% @doc fuse_stats_prometheus - use prometheus counters for fuse stats.
+%%% @doc fuse_stats_prometheus - use <a href="https://github.com/deadtrickster/prometheus.erl">prometheus</a> counters for fuse stats.
 %%% Assumes that you have already arranged to start prometheus.
 -module(fuse_stats_prometheus).
 -behaviour(fuse_stats_plugin).

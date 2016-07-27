@@ -1,4 +1,4 @@
-%%% @doc Fuse implements a circuit breaker pattern for Erlang
+%%% @doc Fuse implements a circuit breaker pattern for Erlang.
 %%% @end
 -module(fuse).
 
@@ -44,7 +44,7 @@ install(Name, Options) ->
     options_ok(Options),
     fuse_server:install(Name, Options).
 
-%% @doc circuit_disable/1 administratively disable a circuit
+%% @doc circuit_disable/1 administratively disable a circuit.
 %% <p>This function is intended to be used administratively, when you want to break the fuse
 %% before you do administration on the service which the fuse protects. This can be used to
 %% e.g., carry out database maintenance. After maintenance, the administrator can reenable
@@ -56,7 +56,7 @@ install(Name, Options) ->
 circuit_disable(Name) ->
     fuse_server:circuit(Name, disable).
 
-%% @doc circuit_enable/1 administratively (re-)enables a fuse
+%% @doc circuit_enable/1 administratively (re-)enables a fuse.
 %% <p>This call is used to reenable a disabled circuit again. Always returns ok and is idempotent.</p>
 %% <p>Use this command at the point in time where you are done with administrative fixes and want
 %% to resume normal operation of the fuse.</p>
@@ -66,8 +66,8 @@ circuit_disable(Name) ->
 circuit_enable(Name) ->
     fuse_server:circuit(Name, enable).
 
-%% @doc run/2 runs a thunk under a given fuse
-%% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'
+%% @doc run/2 runs a thunk under a given fuse.
+%% Calling `run(Name, Func)' will run `Func' protected by the fuse `Name'.
 %% @end
 -spec run(Name, fun (() -> {ok, Result} | {melt, Result}), fuse_context() ) -> {ok, Result} | blown | {error, not_found}
     when
@@ -76,15 +76,15 @@ circuit_enable(Name) ->
 run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
 
 
-%% @doc ask/1 queries the state of a fuse
+%% @doc ask/1 queries the state of a fuse.
 %% Given `ask(N)' we ask the fuse state for the name `N'. Returns the fuse state, either `ok' or `blown'.
-%% If there is no such fuse, returns `{error, not_found}'
+%% If there is no such fuse, returns `{error, not_found}'.
 %% @end
 -spec ask(Name, fuse_context()) -> ok | blown | {error, not_found}
   when Name :: atom().
 ask(Name, Context) -> fuse_server:ask(Name, Context).
 
-%% @doc reset/1 resets a fuse
+%% @doc reset/1 resets a fuse.
 %% Given `reset(N)' this resets the fuse under the name `N'. The fuse will be unbroken with no melts.
 %% @end
 -spec reset(Name) -> ok | {error, not_found}
@@ -92,7 +92,7 @@ ask(Name, Context) -> fuse_server:ask(Name, Context).
 reset(Name) ->
     fuse_server:reset(Name).
 
-%% @doc melt/1 melts a fuse a little bit
+%% @doc melt/1 melts a fuse a little bit.
 %% A call to `melt(N)' will melt fuse `N'. This call always returns `ok' and it is currently implemented synchronously.
 %% @end
 -spec melt(Name) -> ok
@@ -100,7 +100,7 @@ reset(Name) ->
 melt(Name) ->
 	fuse_server:melt(Name).
 
-%% @doc remove/1 removs a fuse
+%% @doc remove/1 removs a fuse.
 %% Given `remove(N)' this removes the fuse under the name `N'. This fuse will no longer exist.
 %% @end
 -spec remove(Name) -> ok

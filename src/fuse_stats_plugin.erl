@@ -14,7 +14,7 @@
 %%% === init/1 ===
 %%% Handles plugin initialization.
 %%% <ul>
-%%% <li>`Name' is the fuse name.</li>.
+%%% <li>`Name' is the fuse name.</li>
 %%% </ul>
 %%% The implementation must create counters and/or whatever is necessary to
 %%% setup the plugin's statistics store.

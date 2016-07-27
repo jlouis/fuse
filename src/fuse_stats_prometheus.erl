@@ -1,5 +1,5 @@
 %%% @doc fuse_stats_prometheus - use prometheus counters for fuse stats.
-%%% Assumes that you have already arranged to start folsom
+%%% Assumes that you have already arranged to start prometheus.
 -module(fuse_stats_prometheus).
 -behaviour(fuse_stats_plugin).
 -export([init/1, increment/2]).
@@ -10,9 +10,11 @@
 
 %% @doc Initialize prometheus counters for  `Name'.
 %% Exports the following metrics:
-%% `Name_responses_total[type]'
-%% `Name_melts_total'
-%% Uses Default Registry.
+%% <ul>
+%% <li>`name_responses_total[type]'</li>
+%% <li>`name_melts_total'.</li>
+%% </ul>
+%% Uses `default' registry.
 -spec init(Name :: atom()) -> ok.
 init(Name) ->
   NameBin = atom_to_binary(Name, utf8),

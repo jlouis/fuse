@@ -32,7 +32,7 @@ add_handler(Handler, Args) ->
     gen_event:add_handler(?SERVER, Handler, Args).
 
 %% @doc Adds a new event handler.
-%% <p>The documentation is @see //stdlib/gen_event. specific. So use that in
+%% <p>The documentation is <a href="http://erlang.org/doc/man/gen_event.html">gen_event</a> specific. So use that in
 %% order to understand the interface here.</p>
 %% @end
 -spec delete_handler(atom() | pid(), [term()]) -> ok.

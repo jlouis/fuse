@@ -15,6 +15,8 @@
 %% <li>`name_melts_total'.</li>
 %% </ul>
 %% Uses `default' registry.
+%% @end
+%% init/1
 -spec init(Name :: atom()) -> ok.
 init(Name) ->
   NameBin = atom_to_binary(Name, utf8),
@@ -27,6 +29,8 @@ init(Name) ->
   ok.
 
 %% @doc Increments `Name''s `Counter'.
+%% @end
+%% increment/2
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
   NameBin = atom_to_binary(Name, utf8),

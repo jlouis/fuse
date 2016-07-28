@@ -5,6 +5,8 @@
 -export([init/1, increment/2]).
 
 %% @doc Initializes folsom for `Name'.
+%% @end
+%% init/1
 -spec init(Name :: atom()) -> ok.
 init(Name) ->
     _ = folsom_metrics:new_spiral(metric(Name, ok)),
@@ -13,6 +15,8 @@ init(Name) ->
     ok.
 
 %% @doc Increments `Name''s `Counter' spiral.
+%% @end
+%% increment/2
 -spec increment(Name :: atom(), Counter :: ok | blown | melt) -> ok.
 increment(Name, Counter) ->
     _ = folsom_metrics:notify({metric(Name, Counter), 1}),

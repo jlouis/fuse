@@ -356,4 +356,3 @@ install_metrics(#fuse { name = N }) ->
 	StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
 	_ = StatsPlugin:init(N),
 	ok.
-

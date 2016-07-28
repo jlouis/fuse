@@ -46,7 +46,7 @@ sync() ->
 init([]) ->
 	S = #state {},
 	{ok, set_timer(S)}.
-	
+
 %% @private
 handle_call(sync, _F, State) ->
 	{reply, ok, State};
@@ -71,7 +71,7 @@ terminate(_Reason, _State) ->
 %% @private
 code_change(_OldVsn, State, _Extra) ->
 	{ok, State}.
-	
+
 %%% Internal API
 handle_fuses(#state { history = Hist } = State) ->
 	Fuses = ets:match_object(?TAB, '_'),
@@ -79,7 +79,7 @@ handle_fuses(#state { history = Hist } = State) ->
 	{AlarmsToChange, UpdatedState} = analyze(State#state { history = TrackedHistory }),
 	process_alarms(AlarmsToChange),
 	UpdatedState.
-	
+
 %% process_alarms/2 raises and clears appropriate alarms
 process_alarms([{A, set} | As]) -> alarm_handler:set_alarm({A, fuse_blown}), process_alarms(As);
 process_alarms([{A, clear} | As]) -> alarm_handler:clear_alarm(A), process_alarms(As);
@@ -87,7 +87,7 @@ process_alarms([]) -> ok.
 
 track_histories(Fuses, Hist) ->
 	lists:foldl(fun update/2, Hist, Fuses).
-	
+
 update({Name, blown}, Hist) ->
     E = {Name, 3},
     [ E | lists:keydelete(Name, 1, Hist) ];

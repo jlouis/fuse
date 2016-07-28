@@ -46,4 +46,3 @@ delete_handler(Handler, Args) ->
 -spec notify(term()) -> ok.
 notify(What) ->
     gen_event:notify(?SERVER, What).
-

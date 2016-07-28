@@ -7,27 +7,27 @@
 -endif.
 
 -export([
-	ask/2,
-	install/2,
-	melt/1,
-	remove/1,
-	reset/1,
-	run/3
+    ask/2,
+    install/2,
+    melt/1,
+    remove/1,
+    reset/1,
+    run/3
 ]).
 
 -export([
-	circuit_enable/1,
-	circuit_disable/1
+    circuit_enable/1,
+    circuit_disable/1
 ]).
 
 -type fuse_context() :: sync | async_dirty.
 -type fault_rate() :: float().
 -type fuse_strategy() ::
-	{standard, pos_integer(), pos_integer()}
-	| {fault_injection, fault_rate(), pos_integer(), pos_integer()}.
+    {standard, pos_integer(), pos_integer()}
+    | {fault_injection, fault_rate(), pos_integer(), pos_integer()}.
 -type fuse_refresh() :: {reset, pos_integer()}.
 -type fuse_options() ::
-	{fuse_strategy(), fuse_refresh()}.
+    {fuse_strategy(), fuse_refresh()}.
 
 -export_type([fuse_context/0, fuse_options/0]).
 
@@ -37,10 +37,10 @@
 %% @end
 %% install/2
 -spec install(Name, Options) -> ok | reset | {error, Reason}
-	when
-	  Name :: atom(),
-	  Options :: fuse_options(),
-	  Reason :: any().
+    when
+      Name :: atom(),
+      Options :: fuse_options(),
+      Reason :: any().
 install(Name, Options) ->
     options_ok(Options),
     fuse_server:install(Name, Options).
@@ -105,7 +105,7 @@ reset(Name) ->
 -spec melt(Name) -> ok
   when Name :: atom().
 melt(Name) ->
-	fuse_server:melt(Name).
+    fuse_server:melt(Name).
 
 %% @doc Removes a fuse.
 %% <p>Given `remove(N)' this removes the fuse under the name `N'. This fuse will no longer exist.</p>

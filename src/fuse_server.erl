@@ -35,14 +35,14 @@
 
 -record(state, { fuses = [] }).
 -record(fuse, {
-	name :: atom(),
-	intensity :: integer(),
-	period :: integer(),
-	heal_time :: integer(),
-	melt_history = [],
-	ty = ok :: 'ok' | {gradual, float()},
-	timer_ref = none,
-	enabled = true
+    name :: atom(),
+    intensity :: integer(),
+    period :: integer(),
+    heal_time :: integer(),
+    melt_history = [],
+    ty = ok :: 'ok' | {gradual, float()},
+    timer_ref = none,
+    enabled = true
 }).
 
 %% -- API -----------------------------------------------------
@@ -52,7 +52,7 @@
 %% This is assumed to be called by (@see fuse_sup). The `Timing' parameter controls how the system manages timing.
 %% @end
 start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% ------
 %% @doc install/2 installs a new fuse into the running system
@@ -60,9 +60,9 @@ start_link() ->
 %% We assume `Opts' are already in the right verified and validated format.
 %% @end
 install(Name, Opts) ->
-	%% Assume options are already verified
-	Fuse = init_state(Name, Opts),
-	gen_server:call(?MODULE, {install, Fuse}).
+    %% Assume options are already verified
+    Fuse = init_state(Name, Opts),
+    gen_server:call(?MODULE, {install, Fuse}).
 
 %% @doc ask/2 asks about the current given fuse state in a given context setting
 %% The documentation is (@see fuse:ask/1)
@@ -98,13 +98,13 @@ ask_(Name) ->
 %% @end
 -spec reset(atom()) -> ok | {error, not_found}.
 reset(Name) ->
-	gen_server:call(?MODULE, {reset, Name}).
+    gen_server:call(?MODULE, {reset, Name}).
 
 %% @doc circuit/2 is used to manually override the fuse state
 %% @end
 -spec circuit(atom(), enable | disable) -> ok.
 circuit(Name, Switch) ->
-	gen_server:call(?MODULE, {circuit, Name, Switch}).
+    gen_server:call(?MODULE, {circuit, Name, Switch}).
 
 %% @doc melt/2 melts the fuse at a given point in time
 %% For documentation, (@see fuse:melt/2)
@@ -112,14 +112,14 @@ circuit(Name, Switch) ->
 -spec melt(Name) -> ok
     when Name :: atom().
 melt(Name) ->
-	gen_server:call(?MODULE, {melt, Name}).
+    gen_server:call(?MODULE, {melt, Name}).
 
 %% @doc remove/1 removes the fuse
 %% The documentation is (@see fuse:remove/1)
 %% @end
 -spec remove(atom()) -> ok | {error, not_found}.
 remove(Name) ->
-	gen_server:call(?MODULE, {remove, Name}).
+    gen_server:call(?MODULE, {remove, Name}).
 
 %% sync/0 syncs the server. For internal use only in tests
 %% @private
@@ -134,7 +134,7 @@ q_melts() ->
 %% @end
 %% @private
 -spec run(Name, fun(() -> {ok, Result} | {melt, Result}), fuse:fuse_context()) ->
-	{ok, Result} | blown | {error, not_found}
+    {ok, Result} | blown | {error, not_found}
   when
     Name :: atom(),
     Result :: any().
@@ -157,8 +157,8 @@ run(Name, Func, Context) ->
 
 %% @private
 init([]) ->
-	_ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
-	{ok, #state{ }}.
+    _ = ets:new(?TAB, [named_table, protected, set, {read_concurrency, true}, {keypos, 1}]),
+    {ok, #state{ }}.
 
 %% @private
 handle_call({install, #fuse { name = Name } = F}, _From, #state { fuses = Fs } = State) ->
@@ -176,59 +176,59 @@ handle_call({install, #fuse { name = Name } = F}, _From, #state { fuses = Fs } =
                     fuses = lists:keystore(Name, #fuse.name, Fs, EF) }}
         end;
 handle_call({circuit, Name, Switch}, _From, State) ->
-	{Reply, State2} = handle_circuit(Name, Switch, State),
-	{reply, Reply, State2};
+    {Reply, State2} = handle_circuit(Name, Switch, State),
+    {reply, Reply, State2};
 handle_call({reset, Name}, _From, State) ->
-	{Reply, State2} = handle_reset(Name, State, reset),
-	{reply, Reply, State2};
+    {Reply, State2} = handle_reset(Name, State, reset),
+    {reply, Reply, State2};
 handle_call({remove, Name}, _From, State) ->
-	{Reply, State2} = handle_remove(Name, State),
-	{reply, Reply, State2};
+    {Reply, State2} = handle_remove(Name, State),
+    {reply, Reply, State2};
 handle_call({melt, Name}, _From, State) ->
-	Now = fuse_time:monotonic_time(),
-	{Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
-	case Res of
-	  ok ->
+    Now = fuse_time:monotonic_time(),
+    {Res, State2} = with_fuse(Name, State, fun(F) -> add_restart(Now, F) end),
+    case Res of
+      ok ->
             StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
             _ = StatsPlugin:increment(Name, melt),
-	    {reply, ok, State2};
-	  not_found -> {reply, ok, State2}
-	end;
+        {reply, ok, State2};
+      not_found -> {reply, ok, State2}
+    end;
 handle_call({ask, Name}, _F, State) ->
-	{reply, ask_(Name), State};
+    {reply, ask_(Name), State};
 handle_call(sync, _F, State) ->
-	{reply, ok, State};
+    {reply, ok, State};
 handle_call(q_melts, _From, #state { fuses = Fs } = State) ->
         {reply, [{N, Ms} || #fuse { name = N, melt_history = Ms } <- Fs], State};
 handle_call(q_disabled, _From, #state { fuses = Fs } = State) ->
-	{reply, [Name || #fuse { name = Name, enabled = false } <- Fs], State};
+    {reply, [Name || #fuse { name = Name, enabled = false } <- Fs], State};
 handle_call(_M, _F, State) ->
-	{reply, {error, unknown}, State}.
+    {reply, {error, unknown}, State}.
 
 %% @private
 handle_cast(_M, State) ->
-	{noreply, State}.
+    {noreply, State}.
 
 %% @private
 handle_info({reset, Name}, State) ->
-	{_Reply, State2} = handle_reset(Name, State, timeout),
-	{noreply, State2};
+    {_Reply, State2} = handle_reset(Name, State, timeout),
+    {noreply, State2};
 handle_info(_M, State) ->
-	{noreply, State}.
+    {noreply, State}.
 
 %% @private
 terminate(_Reason, _State) ->
-	ok.
+    ok.
 
 %% @private
 code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+    {ok, State}.
 
 %%% Internal functions
 %%% ------
 
 handle_reset(Name, State, ResetType) ->
-	Reset = fun(#fuse { timer_ref = TRef } = F) ->
+    Reset = fun(#fuse { timer_ref = TRef } = F) ->
             case ResetType of
                 reset ->
                     fix(F),
@@ -242,12 +242,12 @@ handle_reset(Name, State, ResetType) ->
                     %% No timer installed on this fuse, it is a async fluke
                     {ok, F}
             end
-	end,
-	{Res, State2} = with_fuse(Name, State, Reset),
-	case Res of
-	  ok -> {ok, State2};
-	  not_found -> {{error, not_found}, State2}
-	end.
+    end,
+    {Res, State2} = with_fuse(Name, State, Reset),
+    case Res of
+      ok -> {ok, State2};
+      not_found -> {{error, not_found}, State2}
+    end.
 
 handle_circuit(Name, Switch, State) ->
     Fn = fun(#fuse { enabled = En } = F) ->
@@ -353,6 +353,6 @@ reset_timer(#fuse { timer_ref = TRef } = F) ->
     F#fuse { timer_ref = none }.
 
 install_metrics(#fuse { name = N }) ->
-	StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
-	_ = StatsPlugin:init(N),
-	ok.
+    StatsPlugin = application:get_env(fuse, stats_plugin, fuse_stats_ets),
+    _ = StatsPlugin:init(N),
+    ok.

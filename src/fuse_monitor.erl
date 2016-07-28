@@ -25,60 +25,60 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 
 -record(state, {
-        	alarms = [],
-	history = []
+    alarms = [],
+    history = []
 }).
 
 -define(PERIOD, 60*1000).
 
 %% Lifetime
 start_link() ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% API
 %% @private
 sync() ->
-	gen_server:call(?MODULE, sync).
+    gen_server:call(?MODULE, sync).
 
 %% Callbacks
 
 %% @private
 init([]) ->
-	S = #state {},
-	{ok, set_timer(S)}.
+    S = #state {},
+    {ok, set_timer(S)}.
 
 %% @private
 handle_call(sync, _F, State) ->
-	{reply, ok, State};
+    {reply, ok, State};
 handle_call(_M, _F, State) ->
-	{reply, {error, unknown}, State}.
+    {reply, {error, unknown}, State}.
 
 %% @private
 handle_cast(_M, State) ->
-	{noreply, State}.
+    {noreply, State}.
 
 %% @private
 handle_info(timeout, State) ->
-	NewState = handle_fuses(State),
-	{noreply, set_timer(NewState)};
+    NewState = handle_fuses(State),
+    {noreply, set_timer(NewState)};
 handle_info(_M, State) ->
-	{noreply, State}.
+    {noreply, State}.
 
 %% @private
 terminate(_Reason, _State) ->
-	ok.
+    ok.
 
 %% @private
 code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+    {ok, State}.
 
 %%% Internal API
 handle_fuses(#state { history = Hist } = State) ->
-	Fuses = ets:match_object(?TAB, '_'),
-	TrackedHistory = track_histories(Fuses, Hist),
-	{AlarmsToChange, UpdatedState} = analyze(State#state { history = TrackedHistory }),
-	process_alarms(AlarmsToChange),
-	UpdatedState.
+    Fuses = ets:match_object(?TAB, '_'),
+    TrackedHistory = track_histories(Fuses, Hist),
+    {AlarmsToChange, UpdatedState} = analyze(State#state { history = TrackedHistory }),
+    process_alarms(AlarmsToChange),
+    UpdatedState.
 
 %% process_alarms/2 raises and clears appropriate alarms
 process_alarms([{A, set} | As]) -> alarm_handler:set_alarm({A, fuse_blown}), process_alarms(As);
@@ -86,7 +86,7 @@ process_alarms([{A, clear} | As]) -> alarm_handler:clear_alarm(A), process_alarm
 process_alarms([]) -> ok.
 
 track_histories(Fuses, Hist) ->
-	lists:foldl(fun update/2, Hist, Fuses).
+    lists:foldl(fun update/2, Hist, Fuses).
 
 update({Name, blown}, Hist) ->
     E = {Name, 3},
@@ -115,8 +115,8 @@ analyze(#state { history = Hs, alarms = CurAlarms } = S) ->
 names(Xs) -> [element(1, X) || X <- Xs].
 
 set_timer(#state { } = S) ->
-	?SEND_AFTER(?PERIOD, self(), timeout),
-	S.
+    ?SEND_AFTER(?PERIOD, self(), timeout),
+    S.
 
 intersect([A | As], Others) ->
     case lists:member(A, Others) of

@@ -20,6 +20,7 @@
 
 %% @doc Starts up the event handler.
 %% @end
+%% start_link/0
 start_link() ->
     gen_event:start_link({local, ?SERVER}).
 
@@ -27,6 +28,7 @@ start_link() ->
 %% <p>The documentation is @see //stdlib/gen_event. specific. So use that in
 %% order to understand the interface here.</p>
 %% @end
+%% add_handler/2
 -spec add_handler(atom() | pid(), [term()]) -> ok.
 add_handler(Handler, Args) ->
     gen_event:add_handler(?SERVER, Handler, Args).
@@ -35,6 +37,7 @@ add_handler(Handler, Args) ->
 %% <p>The documentation is <a href="http://erlang.org/doc/man/gen_event.html">gen_event</a> specific. So use that in
 %% order to understand the interface here.</p>
 %% @end
+%% delete_handler/2
 -spec delete_handler(atom() | pid(), [term()]) -> ok.
 delete_handler(Handler, Args) ->
     gen_event:delete_handler(?SERVER, Handler, Args).

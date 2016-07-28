@@ -3,4 +3,4 @@
 -export([uniform/0]).
 
 uniform() ->
-	rand:uniform().
+    rand:uniform().

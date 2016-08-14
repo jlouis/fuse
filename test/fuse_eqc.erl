@@ -21,8 +21,7 @@
 %%% Model state.
 -record(state, {
           melts = [], % History of current melts issued to the SUT
-          disabled = [], % List of fuses which are currently manually disabled
-          installed = [] :: [#fuse{}] % List of installed fuses, with their configuration.
+          installed = [] :: [{term(), #fuse{} }] % List of installed fuses, with their configuration.
 }).
 
 -define(CONTEXT, sync).
@@ -66,8 +65,8 @@ g_atom() ->
 g_name() ->
       fault(g_atom(), elements(fuses())).
 
-g_disabled_name(S) ->
-    elements(S#state.disabled).
+g_disabled_name(#state { installed = IS }) ->
+    elements([N || {N, F} <- IS, F#fuse.disabled == true]).
 
 %% Thomas says this is a bad idea, since we can rule out the name by a precondition (_pre/3)
 %% As a result we stopped using functions like these.
@@ -546,14 +545,19 @@ clear_blown_next(S, _, [Name]) ->
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
 
-add_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
-    case lists:member(Name, Ds) of
-       true -> State;
-       false -> State#state { disabled = Ds ++ [Name] }
+set_fuse_state(#state { installed = IS} = State, Name, Setting) ->
+    case lists:keytake(Name, 1, IS) of
+        false -> State;
+        {value, {_, F}, IS2} ->
+            Stored = lists:keystore(Name, 1, IS2, {Name, F#fuse { disabled = Setting }}),
+            State#state { installed = Stored }
     end.
 
-remove_disabled_next(#state { disabled = Ds } = State, _, [Name]) ->
-    State#state { disabled = Ds -- [Name] }.
+add_disabled_next(State, _, [Name]) ->
+    set_fuse_state(State, Name, true).
+
+remove_disabled_next(State, _, [Name]) ->
+    set_fuse_state(State, Name, false).
 
 blow_fuse_callouts(_S, [Name]) ->
     ?APPLY(add_blown, [Name]),
@@ -586,7 +590,11 @@ add_timer_next(S, _, [Name, TRef]) ->
     with_fuse(S, Name,
               fun
                   (#fuse { state = {blown, Cmds}, timer = undefined } = F) ->
-                      F#fuse { state = {blown, Cmds}, timer = TRef}
+                      F#fuse { state = {blown, Cmds}, timer = TRef};
+                  (#fuse { timer = _ } = Fuse) ->
+                      exit({timer_already_bound, Fuse});
+                  (Otherwise) ->
+                      exit({wrong_fuse_state, Otherwise})
               end).
 
 next_command_callouts(S, [Name]) ->
@@ -740,10 +748,15 @@ blown_fuses(S) ->
     [N || N <- Names,
           is_blown(S, N)].
           
-is_disabled(#state { disabled = Ds }, Name) ->
-    lists:member(Name, Ds).
+is_disabled(#state { installed = IS }, Name) ->
+    case lists:keyfind(Name, 1, IS) of
+        false -> false;
+        {_, #fuse { disabled = D }} -> D
+    end.
 
-has_disabled(#state { disabled = Ds }) -> Ds /= [].
+has_disabled(#state { installed = IS }) ->
+    Disabled = [x || {_, #fuse { disabled = true }} <- IS],
+    Disabled /= [].
 
 fuse_intensity(#state { installed = Inst }, Name) ->
     {Name, #fuse{ count = Count } } = lists:keyfind(Name, 1, Inst),

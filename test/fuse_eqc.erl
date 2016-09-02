@@ -144,7 +144,6 @@ fuse_reset_callouts(S, [Name, TRef]) ->
         false -> ?EMPTY;
         true -> ?APPLY(exec_reset, [Name])
     end,
-    ?APPLY(remove_timer, [Name, TRef]),
     ?RET(ok).
 
 fuse_reset_features(S, [Name, _], _Response) ->
@@ -541,7 +540,8 @@ clear_blown_callouts(S, [Name]) ->
     end.
 
 clear_blown_next(S, _, [Name]) ->
-    with_fuse(S, Name, fun(F) -> F#fuse{ state = ok } end).
+    with_fuse(S, Name,
+              fun(F) -> F#fuse{ state = ok, timer = undefined } end).
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
     S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
@@ -611,7 +611,7 @@ remove_timer_next(S, _, [Name, TRef]) ->
     with_fuse(S, Name,
               fun
                   (#fuse { timer = undefined } = F) ->
-                      exit({no_timer_bound, F});
+                      F;
                   (#fuse { timer = Ref } = F) when Ref == TRef ->
                       F#fuse { timer = undefined };
                   (#fuse { timer = _ } = F) ->

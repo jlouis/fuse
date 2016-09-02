@@ -144,6 +144,7 @@ fuse_reset_callouts(S, [Name, TRef]) ->
         false -> ?EMPTY;
         true -> ?APPLY(exec_reset, [Name])
     end,
+    ?APPLY(remove_timer, [Name, TRef]),
     ?RET(ok).
 
 fuse_reset_features(S, [Name, _], _Response) ->
@@ -583,7 +584,16 @@ process_commands_callouts(_S, [Name]) ->
             ?APPLY(clear_melts, [Name]);
         {delay, Ms} ->
             ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [Ms, ?WILDCARD, {reset, Name}])),
+            ?APPLY(check_no_timer, [Name]),
             ?APPLY(add_timer, [Name, TRef])
+    end.
+
+%% Assert the model has no timers on a given fuse.
+check_no_timer_callouts(#state { installed = IS }, [Name]) ->
+    case lists:keyfind(Name, 1, IS) of
+        false -> ?EMPTY;
+        {_, #fuse { timer = undefined }} -> ?EMPTY;
+        {_, #fuse { timer = TRef }} -> ?FAIL({timer_present, TRef})
     end.
 
 add_timer_next(S, _, [Name, TRef]) ->
@@ -595,6 +605,17 @@ add_timer_next(S, _, [Name, TRef]) ->
                       exit({timer_already_bound, Fuse});
                   (Otherwise) ->
                       exit({wrong_fuse_state, Otherwise})
+              end).
+
+remove_timer_next(S, _, [Name, TRef]) ->
+    with_fuse(S, Name,
+              fun
+                  (#fuse { timer = undefined } = F) ->
+                      exit({no_timer_bound, F});
+                  (#fuse { timer = Ref } = F) when Ref == TRef ->
+                      F#fuse { timer = undefined };
+                  (#fuse { timer = _ } = F) ->
+                      exit({wrong_timer, F})
               end).
 
 next_command_callouts(S, [Name]) ->

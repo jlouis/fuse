@@ -23,7 +23,7 @@
 -type fuse_context() :: sync | async_dirty.
 -type fault_rate() :: float().
 -type fuse_strategy() ::
-    {standard, pos_integer(), pos_integer()}
+    {standard, non_neg_integer(), pos_integer()}
     | {fault_injection, fault_rate(), pos_integer(), pos_integer()}.
 -type fuse_refresh() :: {reset, pos_integer()}.
 -type fuse_options() ::
@@ -121,7 +121,7 @@ remove(Name) ->
 
 options_ok({{standard, MaxR, MaxT}, {reset, Time}})
     when
-      is_integer(MaxR), MaxR > 0,
+      is_integer(MaxR), MaxR >= 0,
       is_integer(MaxT), MaxT >= 0,
       is_integer(Time), Time >= 0 -> ok;
 options_ok({{fault_injection, Rate, MaxR, MaxT}, {reset, Time}})

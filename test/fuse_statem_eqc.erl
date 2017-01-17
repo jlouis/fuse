@@ -600,7 +600,7 @@ is_installed(N, #state { installed = Is }) -> lists:keymember(N, 1, Is).
 
 %% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
-    when K > 0, R >= 0, T >= 0 ->
+    when K >= 0, R >= 0, T >= 0 ->
     true;
 valid_opts(_) ->
     false.

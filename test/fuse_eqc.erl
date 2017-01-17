@@ -90,7 +90,7 @@ g_strategy() ->
             {1, {fault_injection, oneof([real(), int(), g_atom()]), int(), int()}}
         ])},
         oneof([
-            {standard, choose(1, 2), choose(1, 30000)},
+            {standard, choose(0, 2), choose(1, 30000)},
             {fault_injection, g_uniform_real(), choose(1,2), choose(1,30000)}
         ])
     ).
@@ -691,7 +691,7 @@ is_installed(#state { installed = Is }, N) -> lists:keymember(N, 1, Is).
 
 %% valid_opts/1 determines if the given options are valid
 valid_opts({{standard, K, R}, {reset, T}})
-  when K > 0, R >= 0, T >= 0 ->
+  when K >= 0, R >= 0, T >= 0 ->
     true;
 valid_opts({{fault_injection, Rate, K, R}, {reset, T}})
   when K > 0, R >= 0, T >= 0, is_float(Rate), 0 < Rate, Rate =< 1.0 ->

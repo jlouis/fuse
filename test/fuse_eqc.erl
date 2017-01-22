@@ -1,4 +1,5 @@
 %%% The fuse_eqc module implements a Quickcheck model for the Fuse main gen_server.
+%%
 -module(fuse_eqc).
 -compile(export_all).
 
@@ -127,13 +128,16 @@ fuse_reset(Name, _TRef) ->
     ok.
 
 %% You can reset a fuse if there is a blown fuse in the system.
-fuse_reset_pre(S) -> fuses_with_timers(S) /= [].
+fuse_reset_pre(S) ->
+    fuses_with_timers(S) /= [].
 
 fuse_reset_args(S) ->
-    ?LET({N, T}, elements(fuses_with_timers(S)), [N, T]).
+    ?LET({N, T}, elements(fuses_with_timers(S)), 
+         [N, T]).
 
-%% Fuses will only be reset if their state is among the installed and are blown.
-%% Precondition checking is effective at shrinking down failing models.
+%% Fuses will only be reset if their state is among the installed and
+%% are blown. TODO: Lift this restriction later on when the other
+%% parts of the model works better.
 fuse_reset_pre(S, [Name, _]) ->
     is_installed(S, Name) andalso is_blown(S, Name).
 
@@ -141,21 +145,24 @@ fuse_reset_pre(S, [Name, _]) ->
 fuse_reset_callouts(S, [Name, TRef]) ->
     ?APPLY(fuse_time_eqc, trigger, [TRef]),
     case is_blown(S, Name) of
-        false -> ?EMPTY;
-        true -> ?APPLY(exec_reset, [Name])
+        false ->
+            ?EMPTY;
+        true ->
+            ?APPLY(exec_reset, [Name])
     end,
     ?RET(ok).
 
 fuse_reset_features(S, [Name, _], _Response) ->
-    case is_blown(S, Name) of
-        false -> [{fuse_eqc, r01, heal_non_installed}];
-        true -> [{fuse_eqc, r02, {heal_installed_fuse, is_blown(S, Name)}}]
+    case is_installed(S, Name) of
+        false -> [{fuse_eqc, r01, reset_non_installed}];
+        true -> [{fuse_eqc, r02, {reset_installed_fuse, is_blown(S, Name)}}]
     end.
 
-fuse_reset_return(_S, [_Name, _TRef]) -> ok.
-
+%% Return the fuses which have timers, because these are the ones you
+%% can reset explicitly.
 fuses_with_timers(#state { installed = Installed }) ->
-    [{N, Ref} || {N, #fuse{ timer = Ref }} <- Installed, Ref /= undefined].
+    [{N, Ref} || {N, #fuse{ timer = Ref }} <- Installed,
+                 Ref /= undefined].
 
 %% -- INSTALLATION ------------------------------------------------------
 
@@ -178,10 +185,10 @@ install_callouts(_S, [Name, Opts]) ->
     #fuse{ period = P } = Fuse = parse_fuse(Opts),
     ?APPLY(fuse_time_eqc, convert_time_unit, [P, milli_seconds, native]),
     case valid_opts(Opts) of
-        false -> ?RET(badarg);
+        false ->
+            ?RET(badarg);
         true ->
-            T = {Name, Fuse},
-            ?APPLY(install_fuse, [Name, T]),
+            ?APPLY(install_fuse, [Name, {Name, Fuse}]),
             ?APPLY(clear_blown, [Name]),
             ?APPLY(clear_melts, [Name]),
             ?RET(ok)
@@ -318,8 +325,7 @@ ask_installed_features(_S, [_Name], _R) ->
     [{fuse_eqc, r15, ask_installed}].
 
 ask_installed_callouts(_S, [Name]) ->
-    ?MATCH(Res, ?APPLY(lookup, [Name])),
-    ?RET(Res).
+    ?APPLY(lookup, [Name]).
 
 %% plain ask/1
 ask(Name) ->
@@ -330,8 +336,7 @@ ask_pre(S) -> has_fuses_installed(S).
 ask_args(_S) -> [g_name()].
 
 ask_callouts(_S, [Name]) ->
-    ?MATCH(Res, ?APPLY(lookup, [Name])),
-    ?RET(Res).
+    ?APPLY(lookup, [Name]).
 
 ask_features(S, [Name], _V) ->
     case is_installed(S, Name) of
@@ -367,7 +372,6 @@ run_callouts(_S, [Name, Result, Return, _Fun]) ->
             end,
             ?RET({ok, Return})
     end.
-
 
 run_features(_S, [_Name, ok, _, _], _R) -> [{fuse_eqc, r07, run_ok_fuse}];
 run_features(S, [Name, melt, _, _], _R) ->
@@ -540,11 +544,11 @@ clear_blown_callouts(S, [Name]) ->
     end.
 
 clear_blown_next(S, _, [Name]) ->
-    with_fuse(S, Name,
-              fun(F) -> F#fuse{ state = ok, timer = undefined } end).
+    with_fuse(S, Name, fun(F) -> F#fuse{ state = ok } end).
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
-    S#state { melts = [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
+    S#state { melts =
+                  [{N, Ts} || {N, Ts} <- Ms, N /= Name] }.
 
 set_fuse_state(#state { installed = IS} = State, Name, Setting) ->
     case lists:keytake(Name, 1, IS) of
@@ -583,9 +587,7 @@ process_commands_callouts(_S, [Name]) ->
             ?APPLY(clear_blown, [Name]),
             ?APPLY(clear_melts, [Name]);
         {delay, Ms} ->
-            ?MATCH(TRef, ?APPLY(fuse_time_eqc, send_after, [Ms, ?WILDCARD, {reset, Name}])),
-            ?APPLY(check_no_timer, [Name]),
-            ?APPLY(add_timer, [Name, TRef])
+            ?APPLY(send_after, [Name, Ms])
     end.
 
 %% Assert the model has no timers on a given fuse.
@@ -598,14 +600,16 @@ check_no_timer_callouts(#state { installed = IS }, [Name]) ->
 
 add_timer_next(S, _, [Name, TRef]) ->
     with_fuse(S, Name,
-              fun
-                  (#fuse { state = {blown, Cmds}, timer = undefined } = F) ->
-                      F#fuse { state = {blown, Cmds}, timer = TRef};
-                  (#fuse { timer = _ } = Fuse) ->
-                      exit({timer_already_bound, Fuse});
-                  (Otherwise) ->
-                      exit({wrong_fuse_state, Otherwise})
+              fun(#fuse { state = {blown, Cmds}, timer = undefined } = F) ->
+                      F#fuse { state = {blown, Cmds}, timer = TRef}
               end).
+
+send_after_callouts(_S, [Name, Ms]) ->
+    ?MATCH(TRef,
+           ?APPLY(fuse_time_eqc, send_after, [Ms, ?WILDCARD, {reset, Name}])),
+    ?APPLY(check_no_timer, [Name]),
+    ?APPLY(add_timer, [Name, TRef]).
+
 
 remove_timer_next(S, _, [Name, TRef]) ->
     with_fuse(S, Name,
@@ -721,7 +725,8 @@ valid_opts(_) ->
     false.
 
 melt_state(S, Name) ->
-    count_state(fuse_intensity(S, Name) - count_melts(S, Name)).
+    count_state(
+      fuse_intensity(S, Name) - count_melts(S, Name)).
 
 lookup_fuse(#state { installed = Fs } = S, Name) ->
     case is_disabled(S, Name) of
@@ -729,9 +734,9 @@ lookup_fuse(#state { installed = Fs } = S, Name) ->
         false ->
             case lists:keyfind(Name, 1, Fs) of
                 false -> not_found;
-                {_, #fuse{ type = standard, configuration = CL }} ->
+                {_, #fuse { type = standard, configuration = CL }} ->
                     lookup_blown(S, Name, ok, CL);
-                {_, #fuse{ type = {fault_injection, Rate}, configuration = CL } } ->
+                {_, #fuse { type = {fault_injection, Rate}, configuration = CL } } ->
                     lookup_blown(S, Name, {gradual, Rate}, CL)
             end
     end.
@@ -755,10 +760,14 @@ is_blown(S, Name) ->
 
 blown_ref(S, Name) ->
     case fuse(S, Name) of
-        not_found -> not_found;
-        #fuse { state = {blown, _}, timer = undefined } -> impossible;
-        #fuse { state = {blown, _}, timer = R } -> R;
-        #fuse { state = ok } -> ok
+        not_found ->
+            not_found;
+        #fuse { state = {blown, _}, timer = undefined } ->
+            impossible;
+        #fuse { state = {blown, _}, timer = R } ->
+            R;
+        #fuse { state = ok } ->
+            ok
     end.
 
 installed_fuse_names(#state { installed = Is }) ->

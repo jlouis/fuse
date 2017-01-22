@@ -24,7 +24,7 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
-### 2.3.1
+### 2.4.1
 
 Maintenance release. Several grave errors were removed due to the extension of the QuickCheck model to also include timing:
 

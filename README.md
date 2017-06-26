@@ -100,7 +100,7 @@ List of people who have made contributions to the project of substantial size:
 
 # Documentation
 
-Read the tutorial in the next section. For a command referece, there is full EDoc documentation via `make docs`. Note that great care has been taken to produce precise documentation of the stable API fragment of the tool. If you find anything to be undocumented, please open an Issue—or better: a pull request with a patch!
+Read the tutorial in the next section. For a command reference, there is full EDoc documentation via `make docs`. Note that great care has been taken to produce precise documentation of the stable API fragment of the tool. If you find anything to be undocumented, please open an Issue—or better: a pull request with a patch!
 
 # Tutorial
 

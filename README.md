@@ -2,7 +2,7 @@
 
 This application implements a so-called circuit-breaker for Erlang.
 
-[![Build Status](https://travis-ci.org/jlouis/fuse.png?branch=master)](https://travis-ci.org/jlouis/fuse)
+[![Build Status](https://github.com/jlouis/fuse/workflows/build/badge.svg)](https://github.com/jlouis/fuse)
 
 *NOTE*: If you need to access FUSE (Filesystem in Userspace) then this is not the project you want. An Erlang implementation can be found in the *fuserl* project, https://code.google.com/p/fuserl/ or https://github.com/tonyrog/fuserl gives the pointers.
 

@@ -17,7 +17,7 @@ jobs: ci: {
 	"runs-on": "${{matrix.os}}"
 	container: image: "erlang:${{matrix.otp_vsn}}"
 	strategy: matrix: {
-		otp_vsn: OTP.latest
+		otp_vsn: OTP.all
 		os: ["ubuntu-latest"]
 	}
 	steps: [{

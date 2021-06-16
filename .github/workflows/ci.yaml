@@ -1,12 +1,11 @@
----
 name: build
 on:
   push:
     branches:
-      - master
+    - master
   pull_request:
     branches:
-      - master
+    - master
 jobs:
   ci:
     name: Run checks and tests over ${{matrix.otp_vsn}} and ${{matrix.os}}
@@ -15,9 +14,17 @@ jobs:
       image: erlang:${{matrix.otp_vsn}}
     strategy:
       matrix:
-        otp_vsn: [18.3, 19.3, 20.3, 21.3, 22.3, 23.3, 24.0]
-        os: [ubuntu-latest]
+        otp_vsn:
+        - 18.3
+        - 19.3
+        - 20.3
+        - 21.3
+        - 22.3
+        - 23.3
+        - 24.0
+        os:
+        - ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - run: make all
-      - run: make tests
+    - uses: actions/checkout@v2
+    - run: make all
+    - run: make tests

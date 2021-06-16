@@ -15,16 +15,12 @@ jobs:
     strategy:
       matrix:
         otp_vsn:
-        - 18.3
-        - 19.3
-        - 20.3
-        - 21.3
-        - 22.3
-        - 23.3
         - 24.0
         os:
         - ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: make all
-    - run: make tests
+    - name: Build the software
+      run: make all
+    - name: Run the tests
+      run: make tests

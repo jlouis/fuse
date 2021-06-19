@@ -29,4 +29,5 @@ jobs: ci: steps:
 	{
 		name: "Run the tests"
 		run:  "make tests"
-	}]
+	},
+]

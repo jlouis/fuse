@@ -1,3 +1,3 @@
 all:
-	cue export --out yaml ci.cue > ci.yaml
+	cue export --out yaml > ci.yaml
 

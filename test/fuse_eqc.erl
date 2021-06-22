@@ -18,7 +18,7 @@
           configuration,
           disabled = false
 }).
-          
+
 %%% Model state.
 -record(state, {
           melts = [], % History of current melts issued to the SUT
@@ -132,7 +132,7 @@ fuse_reset_pre(S) ->
     fuses_with_timers(S) /= [].
 
 fuse_reset_args(S) ->
-    ?LET({N, T}, elements(fuses_with_timers(S)), 
+    ?LET({N, T}, elements(fuses_with_timers(S)),
          [N, T]).
 
 %% Fuses will only be reset if their state is among the installed and
@@ -479,7 +479,7 @@ remove_callouts(S, [Name]) ->
 
 uninstall_next(#state { installed = Is } = S, _, [Name]) ->
     S#state { installed = lists:keydelete(Name, 1, Is) }.
-    
+
 remove_features(S, [Name], _V) ->
     case is_installed(S, Name) of
         false -> [{fuse_eqc, r17, remove_uninstalled_fuse}];
@@ -512,7 +512,7 @@ record_melt_next(#state { melts = Ms } = S, _, [Name, Ts]) ->
 expire_melts_next(#state { melts = Ms } = S, _, [Who, Period, Now]) ->
     Updated = [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
     S#state { melts = Updated }.
-    
+
 expire_melts_features(#state { melts = Ms }, [Who, Period, Now], _) ->
     Updated = [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
     case Ms /= Updated of
@@ -570,7 +570,7 @@ blow_fuse_callouts(_S, [Name]) ->
 
 blow_fuse_features(_S, _, _) ->
     [{fuse_eqc, r13, blowing_fuse}].
-    
+
 add_blown_next(S, _, [Name]) ->
     with_fuse(S, Name,
               fun
@@ -579,7 +579,7 @@ add_blown_next(S, _, [Name]) ->
 
 exec_reset_callouts(_S, [Name]) ->
     ?APPLY(process_commands, [Name]).
-    
+
 process_commands_callouts(_S, [Name]) ->
     ?MATCH(Next, ?APPLY(next_command, [Name])),
     case Next of
@@ -748,7 +748,7 @@ lookup_blown(S, Name, OK, Cmds) ->
             case Cmds of
                 [{delay, _} | _] -> blown
             end
-            
+
     end.
 
 is_blown(S, Name) ->
@@ -777,7 +777,7 @@ blown_fuses(S) ->
     Names = installed_fuse_names(S),
     [N || N <- Names,
           is_blown(S, N)].
-          
+
 is_disabled(#state { installed = IS }, Name) ->
     case lists:keyfind(Name, 1, IS) of
         false -> false;

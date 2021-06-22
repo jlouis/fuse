@@ -4,19 +4,19 @@ This application implements a so-called circuit-breaker for Erlang.
 
 [![Build Status](https://github.com/jlouis/fuse/workflows/build/badge.svg)](https://github.com/jlouis/fuse)
 
-*NOTE*: If you need to access FUSE (Filesystem in Userspace) then this is not the project you want. An Erlang implementation can be found in the *fuserl* project, https://code.google.com/p/fuserl/ or https://github.com/tonyrog/fuserl gives the pointers.
+*NOTE*: If you need to access FUSE (Filesystem in Userspace) then this is not the project you want. An Erlang implementation can be found in the *fuserl* project, [fuserl on Google Code](https://code.google.com/p/fuserl/) or [fuserl on Github](https://github.com/tonyrog/fuserl) gives the pointers.
 
 The current code status is that we have extensive test cases and test frameworks written around the code, but it has not been used in production systems yet. If you use the system in production, I would very much like to hear about it. Especially if you encountered any problems while doing so.
 
-### Alternative implementations:
+## Alternative implementations
 
 I know of a couple of alternative circuit breaker implementations for Erlang:
 
-* *breaky* - https://github.com/mmzeeman/breaky - Breaky is implemented as an FSM in front of the protected service. This is another implementation model in which the breaker also controls service restarts once they fail. As such, it implements a slightly different pattern than *fuse*. In breaky, you have a process which can fail and you have a restart policy for that process. *breaky* will then handle the automatic restart policy and do circuit breaking handling for you. It is used in systems like Zotonic to handle cascading errors there.
+* [breaky](https://github.com/mmzeeman/breaky) - Breaky is implemented as an FSM in front of the protected service. This is another implementation model in which the breaker also controls service restarts once they fail. As such, it implements a slightly different pattern than *fuse*. In breaky, you have a process which can fail and you have a restart policy for that process. *breaky* will then handle the automatic restart policy and do circuit breaking handling for you. It is used in systems like Zotonic to handle cascading errors there.
 
-* *circuit_breaker* - https://github.com/klarna/circuit_breaker - Klarna's battle-tested circuit breaker application. The pattern here is much closer to what fuse provides. However, the main difference is that in circuit_breaker, there can be different thresholds for different error types. This means you can be more specific as to what kind of error you have and how you plan on handling it. This tool also has the advantage of 8 years of battle-testing in production at Klarna. It may fit your use case if you can tolerate spawning a function per call to the circuit breaker application.
+* [circuit breaker](https://github.com/klarna/circuit_breaker) - Klarna's battle-tested circuit breaker application. The pattern here is much closer to what fuse provides. However, the main difference is that in circuit_breaker, there can be different thresholds for different error types. This means you can be more specific as to what kind of error you have and how you plan on handling it. This tool also has the advantage of 8 years of battle-testing in production at Klarna. It may fit your use case if you can tolerate spawning a function per call to the circuit breaker application.
 
-# Changelog
+## Changelog
 
 We use semantic versioning. In release `X.Y.Z` we bump
 
@@ -63,12 +63,12 @@ Rename `fuse_evt` → `fuse_event`. While this is not strictly a valid thing, si
 
 Initial Release.
 
-# Background
+## Background
 
 When we build large systems, one of the problems we face is what happens when we have long dependency chains of applications. We might have a case where applications call like this:
 
-	app_A → app_B → app_C
-	
+  app_A → app_B → app_C
+
 Now, if we begin having errors in application `B`, the problem is that application `A` needs to handle this by waiting for a timeout of Application `B` all the time. This incurs latency in the code base. A Circuit Breaker detects the error in the underlying system and then avoids making further queries. This allows you to handle the breakage systematically in the system. For long cascades, layering of circuit breakers allow one to detect exactly which application is responsible for the breakage.
 
 A broken circuit introduces some good characteristics in the system:
@@ -78,9 +78,9 @@ A broken circuit introduces some good characteristics in the system:
 * Clients can discriminate a system with slow response time from one that is genuinely broken. For the vast majority of clients, this is beneficial. A front-end can opt to skip displaying of certain elements, should the backend parts be down.
 * Circuits introduce a point where your cascading dependencies can be easily monitored. By moving monitoring and reporting to another subsystem, one achieves decoupling between the system doing operation and the system overseeing operation. This is usually nice from an architectural perspective.
 
-The broken circuit will be retried once in a while. The system will then auto-heal if connectivity comes back for the underlying systems. 
+The broken circuit will be retried once in a while. The system will then auto-heal if connectivity comes back for the underlying systems.
 
-# Thanks
+## Thanks
 
 Several companies should be thanked:
 
@@ -88,7 +88,7 @@ Several companies should be thanked:
 * Erlang Solutions: For lending some development time to the project as well.
 * Quviq: for making Erlang QuickCheck and helping with model construction.
 
-## Contributors:
+## Contributors
 
 List of people who have made contributions to the project of substantial size:
 
@@ -98,16 +98,18 @@ List of people who have made contributions to the project of substantial size:
 * Thomas Arts
 * Zeeshan Lakhani
 
-# Documentation
+## Documentation
 
 Read the tutorial in the next section. For a command reference, there is full EDoc documentation via `make docs`. Note that great care has been taken to produce precise documentation of the stable API fragment of the tool. If you find anything to be undocumented, please open an Issue—or better: a pull request with a patch!
 
-# Tutorial
+## Tutorial
 
 To use fuse, you must first start the fuse application:
+
 ```erlang
 application:start(fuse).
-```	
+```
+
 but note that in real systems it is better to have other applications *depend* on fuse and then start it as part of a release boot script. Next, you must add a fuse into the system by *installing* a fuse description. This is usually done as part of the `application:start/1` callback:
 
 ```erlang
@@ -129,11 +131,12 @@ Fuses are name-created idempotently, so your application can recreate a fuse if 
 * Reinstalling a fuse overwrites the options.
 
 Once you have installed a fuse, you can ask about its state:
+
 ```erlang
 Context = sync,
 case fuse:ask(database_fuse, Context) of
-	ok -> …;
-	blown -> …
+  ok -> …;
+  blown -> …
 end,
 ```
 
@@ -147,12 +150,12 @@ Now suppose you have a working fuse, but you suddenly realize you get errors of 
 ```erlang
 case emysql:execute(Stmt) of
     {error, connection_lock_timeout} ->
-    	ok = fuse:melt(database_fuse),
-    	…
+      ok = fuse:melt(database_fuse),
+      …
     …
 end,
 ```
-	
+
 The fuse has a policy, so once it has been melted too many times, it will blow for a while until it has cooled down. Then it will heal back to the initial state. If the underlying system is still broken, the fuse will quickly break again. While this reset-methodology is not optimal, it is easy to create a Quickcheck model showing the behaviour is correct. Note `melt` is synchronous. It blocks until the fuse can handle the melt. There are two reasons for this:
 
 * It is overload-safe against the fuse code. Even if processes can outrun the fuse, it cannot build up queue due to this (though this is only the case if there is a bounded number of accessors to the fuse).
@@ -167,37 +170,39 @@ Another way to run the fuse is to use a wrapper function. Suppose you have a fun
 %% To use this function:
 Context = sync,
 case fuse:run(Name, fun exec/0, Context) of
-	{ok, Result} -> …;
-	blown -> …
+  {ok, Result} -> …;
+  blown -> …
 end,
 ```
 
 this function will do the asking and melting itself based on the output of the underlying function. The `run/3` invocation is often easier to handle in programs. As with `ask/1`, you must supply your desired context.
 
-# Fuse types
+## Fuse types
 
 There are a couple of different fuse types in the system:
 
 * Standard fuses, `{standard, MaxR, MaxT}`. These are fuses which tolerate `MaxR` melt attempts in a `MaxT` window, before they break down.
 * Fault injection fuses, `{fault_injection, Rate, MaxR, MaxT}`. This fuse type sets up a fault injection scheme where the fuse fails at rate `Rate`, an floating point value between `0.0`–`1.0`. If you enter, say `1 / 500` then roughly every 500th request will se a `blown` fuse, even if the fuse is okay. This can be used to add noise to the system and verify that calling systems support the failure modes appropriately. The values `MaxR` and `MaxT` works as in a standard fuse.
 
-# Administrative commands
+## Administrative commands
 
 An administrator can manually disable/reenable fuses through the following commands:
+
 ```erlang
 ok = fuse:circuit_disable(Name),
 …
 ok = fuse:circuit_enable(Name),
-```	
+```
+
 When you disable a circuit, you blow the fuse until you enable the circuit again.
 
 The interaction rules for disables/enables is that they dominate every other command except the call to `remove/1`. That is, even reinstalling an already installed fuse will not reenable it. The only way is to either call `fuse:circuit_enable/1` or by first `fuse:remove/1`'ing the fuse and then executing an `install/1` command.
 
-# Monitoring fuse state
+## Monitoring fuse state
 
 Fuses installed into the system are automatically instrumented in two ways: stats plugins and the `alarm_handler`.
 
-## Stats plugins
+### Stats plugins
 
 Fuse includes a simple [behaviour](http://www.erlang.org/doc/design_principles/des_princ.html), `fuse_stats_plugin`, for integration with statistics and monitoring systems.
 
@@ -205,51 +210,44 @@ Independent of which stats plugin you use, the `ok` and `blown` metrics are incr
 
 *Note:* The metrics are subject to change. Especially if someone can come up with better metrics to instrument for in the system.
 
-### `fuse_stats_ets`
-
-Maintains simple counts in an [ETS](http://www.erlang.org/doc/man/ets.html) table, which you can retrieve with a call to e.g. `fuse_stats_ets:counters(foo).`
-
-### `fuse_stats_folsom`
-
-Maintains [folsom](https://github.com/boundary/folsom) spirals `foo.ok`, `foo.blown` and `foo.melt`.
-
-### `fuse_stats_exometer`
-
-Maintains [exometer](https://github.com/Feuerlabs/exometer) spirals `[fuse, foo, ok]`, `[fuse, foo, blown]` and `[fuse, foo, melt]`.
-
-### `fuse_stats_prometheus`
-
-Maintains [prometheus](https://github.com/deadtrickster/prometheus.erl) counters `foo_responses_total[type="ok|blown"]` and `foo_melts_total`.
+* `fuse_stats_ets`: Maintains simple counts in an [ETS](http://www.erlang.org/doc/man/ets.html) table, which you can retrieve with a call to e.g. `fuse_stats_ets:counters(foo).`
+* `fuse_stats_folsom`: Maintains [folsom](https://github.com/boundary/folsom) spirals `foo.ok`, `foo.blown` and `foo.melt`.
+* `fuse_stats_exometer`: Maintains [exometer](https://github.com/Feuerlabs/exometer) spirals `[fuse, foo, ok]`, `[fuse, foo, blown]` and `[fuse, foo, melt]`.
+* `fuse_stats_prometheus`: Maintains [prometheus](https://github.com/deadtrickster/prometheus.erl) counters `foo_responses_total[type="ok|blown"]` and `foo_melts_total`.
 
 ### Using a plugin
 
 By default, fuse uses the `fuse_stats_ets` plugin. To use another, set it up in the environment with e.g.
+
 ```erlang
 application:set_env(fuse, stats_plugin, fuse_stats_folsom).
 ```
+
 or in a `.config` as
+
 ```erlang
 {fuse, [ {stats_plugin, fuse_stats_folsom} ] }
 ```
+
 Note that it's up to you to arrange your application's dependencies such that plugin applications like folsom or exometer are available and started. Fuse has no direct dependency on either folsom or exometer.
 
 ### Writing a plugin
 
 See the source of `fuse_stats_plugin` and the plugins above for documentation and examples.
 
-## `alarm_handler`
+## Integration with the alarm handler
 
 Furthermore, fuses raises alarms when they are blown. They raise an alarm under the same name as the fuse itself. To clear the alarm, the system uses hysteresis. It has to see 3 consecutive `ok` states on a fuse before clearing the alarm. This is to avoid alarm states from flapping excessively.
 
-# Fuse events
+## Fuse events
 
 The *fuse* system contains an event handler, `fuse_event` which can be used to listen on events and react when events trigger in the fuse subsystem. It will send events which are given by the following dialyzer specification `{atom(), blown | ok}`. Where the `atom()` is the name of the installed fuse.
 
 The intended use is to evict waiters from queues in a system. Suppose you are queueing workers up for answers, blocking the workers in the process. When the workers were queued, the fuse was not blown, but now it suddenly broke. You can then install an event handler which pushes a message to the queueing process and tells it the fuse is broken. It can then react by evicting all the entries in queue as if the fuse was broken.
 
-# Speed
+## Speed
 
-## Standard fuses
+### Standard fuses
 
 On a Lenovo Thinkpad running Linux 3.14.4 with a processor `Intel(R) Core(TM) i7-3720QM CPU @ 2.60GHz` (An Ivy Bridge) Erlang Release 17.0.1, we get a throughput of 2.1 million fuse queries per second by running the stress test in `stress/stress.erl`. This test also has linear speedup over all the cores. Lookup times are sub-microsecond, usually around the 0.5 ballpark.
 
@@ -257,22 +255,26 @@ Running on a Q4 2013 Macbook Pro, OSX 10.9.2, 2 Ghz Intel Core i7 (Haswell) yiel
 
 In practice, your system will be doing other things as well, but do note that the overhead of enabling a fuse is expected to be around 0.5μs in overhead.
 
-## Fault injecting fuses
+### Fault injecting fuses
 
 A fuse running with fault injection has the added caveat that it also makes a call to `rand:uniform()` which in turn will slow down the request rate. It is not expected to be a lot of slowdown, but it is mentioned here for the sake of transparency.
 
-# Tests
+## Tests
 
 Fuse is written with two kinds of tests. First of all, it uses a set of Common Test test cases which runs the basic functionality of the system. Furthermore, fuse is written with Erlang QuickCheck test cases. EQC tests are written before the corresponding code is written, and as such, this is "Property Driven Development".
 
 To run the standard tests, execute:
 
-	rebar3 ct
-	
+```bash
+rebar3 ct
+```
+
 To run the EQC tests, you have to
 
-	rebar3 as eqc ct
-	
+```bash
+rebar3 as eqc ct
+```
+
 This compiles the fuse system with mocked time so the EQC system controls time. Then it runs the models against the code base. For manual testing, you need to make the same compilation by setting the flag `EQC_TESTING`.
 
 I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
@@ -283,48 +285,50 @@ Great care has been taken in order to make sure fuse can be part of the error ke
 
 QuickCheck allows us to test for requirements of a system. This essentially tests for any interleaving of calls toward the Fuse subsystem, so we weed out any error. We test for the following requirements as part of the test suite. We have verified that all of these requirements are being hit by typical EQC runs:
 
-    Group heal:
-    R01 - Heal non-installed fuse (must never be triggered)
-    R02 - Heal installed fuse (only if blown already)
+```text
+Group heal:
+R01 - Heal non-installed fuse (must never be triggered)
+R02 - Heal installed fuse (only if blown already)
 
-    Group install:
-    R03 - Installation of a fuse with invalid configuation
-    R04 - Installation of a fuse with valid configuration
+Group install:
+R03 - Installation of a fuse with invalid configuation
+R04 - Installation of a fuse with valid configuration
 
-    Group Reset:
-    R05 - Reset of an uninstalled fuse
-    R06 - Reset of an installed fuse (blown and nonblown)
+Group Reset:
+R05 - Reset of an uninstalled fuse
+R06 - Reset of an installed fuse (blown and nonblown)
 
-    Group Melt:
-    R11 - Melting of an installed fuse
-    R12 - Melting of an uninstalled fuse
+Group Melt:
+R11 - Melting of an installed fuse
+R12 - Melting of an uninstalled fuse
 
-    Group run/2:
-    R07 - Use of run/2 on an ok fuse
-    R08 - Use of run/2 on a melted fuse
-    R09 - Use of run/2 on an ok fuse which is melted in the process
-    R10 - Use of run/2 on an uninstalled fuse
+Group run/2:
+R07 - Use of run/2 on an ok fuse
+R08 - Use of run/2 on a melted fuse
+R09 - Use of run/2 on an ok fuse which is melted in the process
+R10 - Use of run/2 on an uninstalled fus
 
-    Group blow:
-    R13 - Blowing a fuse
-    R14 - Removing melts from the window by expiry
+Group blow:
+R13 - Blowing a fuse
+R14 - Removing melts from the window by expir
 
-    Group ask/1:
-    R15 - Ask on an installed fuse
-    R16 - Ask on an uninstalled fuse
+Group ask/1:
+R15 - Ask on an installed fuse
+R16 - Ask on an uninstalled fus
 
-    Group circuitry:
-    R17 - Disable an installed fuse
-    R18 - Disable an uninstalled fuse
-    R19 - Reenable an installed fuse
-    R20 - Reenable an uninstalled fuse
-    R21 - Melting a disabled fuse
+Group circuitry:
+R17 - Disable an installed fuse
+R18 - Disable an uninstalled fuse
+R19 - Reenable an installed fuse
+R20 - Reenable an uninstalled fuse
+R21 - Melting a disabled fus
 
-    Group reset commands:
-    R22 - Heal command execution
-    R23 - Delay command execution
+Group reset commands:
+R22 - Heal command execution
+R23 - Delay command execution
+```
 
-## EQC Test harness features:
+## EQC Test harness features
 
 * Tests the fuse API in all cases with positive testing
 * Uses negative testing to make sure the `install/2` command rejects wrong options correctly.
@@ -340,19 +344,19 @@ Furthermore:
 * The EQC Test harness tests its internal consistency of time handling by using properties to test its own model for correctness.
 * Makes a case as to why timestamping should happen inside `fuse_server` and not outside (clocks can skew and time can go backwards if clients draw from a time source. In a distributed setting, it is even worse).
 
-# Subtle Errors found by EQC
+## Subtle Errors found by EQC
 
 Software construction is a subtle and elusive business. Most errors in software are weeded out early in the development cycle, the errors that remain are really rare and hard to find. Static type systems will only raise the bar and make the remaining errors even more slippery from your grasp. Thus, the only way to remove these errors is to use a tool which is good at construction elusive counter-examples. Erlang QuickCheck is such a tool.
 
 Development guided by properties leads to a code base which is considerably smaller. In the course of building `fuse` we iteratively removed functionality from the code base which proved to be impossible to implement correctly. Rather than ending up with a lot of special cases, development by property simply suggested the removal of certain nasty configurations of the software, which does nothing but makes it more bloated. Worse—one could argue some of these configuration would never be used in practice, leading to written code which would never be traversed.
 
-## General:
+### General
 
 * Numerous small mistakes have been weeded out while developing the code.
 * EQC has guided the design in a positive way. This has lead to smaller and simpler code with fewer errors.
 * EQC has suggested improvements to the API. Specifically in the area of synchronous calls and race condition avoidance.
 
-## Subtleties:
+### Subtleties
 
 * If you `install/2` a fuse with an intensity of `0` it will start in the `blown` state and not in the `ok` state. The code did not account for this small detail.
 * Parallel test case generation found a wrong reset invocation where the answer was `{error, no_such_fuse}` and not the specified `{error, not_found}`. Sequential tests did not find this particular interleaving problem. Subsequently, the discovery was an inadequacy in the sequential model with too weak pre-condition generation.

@@ -1,21 +1,13 @@
 PROJECT = fuse
 
-rebar3-compile:
-	rebar3 compile | sed -e 's|_build/default/lib/fuse/||'
+.PHONY: all
+all:
+	rebar3 compile
 
-ERLC_OPTS := +debug_info +warn_export_all +warn_export_vars \
-	+warn_shadow_vars +warn_obsolete_guard
+.PHONY: tests
+tests:
+	rebar3 ct
 
-.DEFAULT_GOAL := app
-
-app_eqc: ERLC_OPTS += -DEQC_TESTING
-app_eqc: app
-	rm -f *.beam
-	erlc -DEQC_TESTING test/*.erl 
-
-# Options.
-CT_SUITES = fuse
-PLT_APPS = sasl
-COMPILE_FIRST = fuse_stats_plugin
-
-include erlang.mk
+.PHONY: app_eqc
+app_eqc: all
+	erlc -DEQC_TESTING test/*.erl

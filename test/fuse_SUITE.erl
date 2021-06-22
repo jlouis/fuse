@@ -37,13 +37,13 @@ suite() ->
 init_per_suite(Config) ->
      case ?EQC_PRESENT of
        false ->
-	application:load(sasl),
-	application:set_env(sasl, sasl_error_logger, false),
-	application:set_env(sasl, errlog_type, error),
-	error_logger:tty(false),
-	ok = application:start(sasl),
-	{ok, _} = application:ensure_all_started(fuse),
-	Config;
+		application:load(sasl),
+		application:set_env(sasl, sasl_error_logger, false),
+		application:set_env(sasl, errlog_type, error),
+		error_logger:tty(false),
+		ok = application:start(sasl),
+		{ok, _} = application:ensure_all_started(fuse),
+		Config;
       true ->
         {skip, running_eqc}
     end.

@@ -6,7 +6,7 @@ This application implements a so-called circuit-breaker for Erlang.
 
 *NOTE*: If you need to access FUSE (Filesystem in Userspace) then this is not the project you want. An Erlang implementation can be found in the *fuserl* project, [fuserl on Google Code](https://code.google.com/p/fuserl/) or [fuserl on Github](https://github.com/tonyrog/fuserl) gives the pointers.
 
-The current code status is that we have extensive test cases and test frameworks written around the code, but it has not been used in production systems yet. If you use the system in production, I would very much like to hear about it. Especially if you encountered any problems while doing so.
+Fuse has seen use in various production systems, and the code should be quite stable. In particular, the extensive QuickCheck testing should make the code trustable to a larger extent than its production use.
 
 ## Alternative implementations
 

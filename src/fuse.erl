@@ -38,7 +38,7 @@
 %% install/2
 -spec install(Name, Options) -> ok | reset | {error, Reason}
     when
-      Name :: atom(),
+      Name :: term(),
       Options :: fuse_options(),
       Reason :: any().
 install(Name, Options) ->
@@ -54,7 +54,7 @@ install(Name, Options) ->
 %% @end.
 %% circuit_disable/1
 -spec circuit_disable(Name) -> ok
-   when Name :: atom().
+   when Name :: term().
 circuit_disable(Name) ->
     fuse_server:circuit(Name, disable).
 
@@ -65,7 +65,7 @@ circuit_disable(Name) ->
 %% @end
 %% circuit_enable/1
 -spec circuit_enable(Name) -> ok
-  when Name :: atom().
+  when Name :: term().
 circuit_enable(Name) ->
     fuse_server:circuit(Name, enable).
 
@@ -75,7 +75,7 @@ circuit_enable(Name) ->
 %% run/3
 -spec run(Name, fun (() -> {ok, Result} | {melt, Result}), fuse_context() ) -> {ok, Result} | blown | {error, not_found}
     when
-      Name :: atom(),
+      Name :: term(),
       Result :: any().
 run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
 
@@ -86,7 +86,7 @@ run(Name, Func, Context) -> fuse_server:run(Name, Func, Context).
 %% @end
 %% ask/2
 -spec ask(Name, fuse_context()) -> ok | blown | {error, not_found}
-  when Name :: atom().
+  when Name :: term().
 ask(Name, Context) -> fuse_server:ask(Name, Context).
 
 %% @doc Resets a fuse.
@@ -94,7 +94,7 @@ ask(Name, Context) -> fuse_server:ask(Name, Context).
 %% @end
 %% reset/1
 -spec reset(Name) -> ok | {error, not_found}
-  when Name :: atom().
+  when Name :: term().
 reset(Name) ->
     fuse_server:reset(Name).
 
@@ -103,7 +103,7 @@ reset(Name) ->
 %% @end
 %% melt/1
 -spec melt(Name) -> ok
-  when Name :: atom().
+  when Name :: term().
 melt(Name) ->
     fuse_server:melt(Name).
 
@@ -112,7 +112,7 @@ melt(Name) ->
 %% @end
 %% remove/1
 -spec remove(Name) -> ok
-  when Name :: atom().
+  when Name :: term().
 remove(Name) ->
     fuse_server:remove(Name).
 

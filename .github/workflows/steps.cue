@@ -24,10 +24,10 @@ jobs: ci: steps:
 	},
 	{
 		name: "Compile source code"
-		run:  "make all"
+		run:  "rebar3 compile"
 	},
 	{
 		name: "Run the tests"
-		run:  "make tests"
+		run:  "rebar3 ct"
 	},
 ]

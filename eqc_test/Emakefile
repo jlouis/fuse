@@ -1,1 +1,1 @@
-{'*', [{d, 'EQC_TESTING'}, debug_info]}.
+{'*', [debug_info, nowarn_export_all]}.

@@ -4,7 +4,6 @@
 -module(eqc_lib).
 -vsn("1.3.0").
 -compile(export_all).
--ifdef(EQC_TESTING).
 
 -include_lib("eqc/include/eqc.hrl").
 
@@ -77,7 +76,7 @@ prop_sorted() ->
               {ordering, ordered(Sorted)}
             ])
         end).
-        
+
 ordered([]) -> true;
 ordered([_]) -> true;
 ordered([X,Y|T]) ->
@@ -87,7 +86,7 @@ ordered([X,Y|T]) ->
     end.
 
 %% The following implement term comparison in Erlang to test an alternative implementation
-%% of erts_internal:cmp_term/2 
+%% of erts_internal:cmp_term/2
 cmp_term(T1, T2) when is_integer(T1), is_integer(T2) -> T1 < T2;
 cmp_term(T1, _) when is_integer(T1) -> true;
 cmp_term(T1, T2) when is_float(T1), is_float(T2) -> T1 < T2;
@@ -133,7 +132,7 @@ stem_and_leaf(Title) ->
      "----------------\n",
      (out_stem_and_leaf(stem_and_leaf_collect(Counts, #{})))]])
   end.
-    
+
 stem_and_leaf_collect([{C, 1}|Cs], Bins) ->
     stem_and_leaf_collect(Cs, store_bin(C div 10, C rem 10, Bins));
 stem_and_leaf_collect([{C, K} | Cs], Bins) ->
@@ -148,7 +147,7 @@ store_bin(D, R, Bins) ->
 
 out_stem_and_leaf(Bins) ->
     out_sl(lists:sort(maps:to_list(Bins))).
-    
+
 out_sl([]) -> [];
 out_sl([{C, Elems} | Next]) ->
     Line = io_lib:format("~4.B | ~ts~n", [C, leaves(lists:sort(Elems))]),
@@ -227,11 +226,11 @@ summary_scan(Min, Max, N, Sum, [{E, Count} | RLEs]) ->
 
 percentile(RLE, N, Pct) ->
     percentile_pick(RLE, perc(Pct, N)).
-    
+
 percentile_pick([{E, N} | _RLEs], ToSkip) when ToSkip =< N -> E;
 percentile_pick([{_E, N} | RLEs], ToSkip) ->
     percentile_pick(RLEs, ToSkip - N).
-    
+
 perc(P, Len) ->
     V = round(P * Len / 100),
     erlang:max(1, V).
@@ -273,5 +272,3 @@ tracker_loop(S) ->
       {set_state, N} ->
           ?MODULE:tracker_loop(N)
     end.
-
--endif.

@@ -1,8 +1,6 @@
 -module(fuse_time_eqc).
 -compile(export_all).
 
--ifdef(EQC_TESTING).
-
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
@@ -46,7 +44,7 @@ advance_time_args(_S) ->
 
 advance_time_next(#state { time = T } = State, _, [A]) ->
 	State#state { time = T + A }.
-	
+
 advance_time_return(_S, _) -> ok.
 
 advance_time_features(_, _, _) -> [{fuse_time, r00, advance_time}].
@@ -61,14 +59,14 @@ can_fire(#state { time = T, timers = TS }, Ref) ->
          false -> false;
          {TP, _, _, _} -> T >= TP
      end.
-   
+
 trigger_pre(S, [{tref, Ref}]) -> can_fire(S, Ref).
-    
+
 trigger_return(#state { timers = TS }, [{tref, Ref}]) ->
     case lists:keyfind(Ref, 2, TS) of
         {_TP, _Ref, _Pid, Msg} -> Msg
     end.
-    
+
 trigger_next(#state { timers = TS } = S, _, [{tref, Ref}]) ->
     S#state{ timers = lists:keydelete(Ref, 2, TS) }.
 
@@ -77,10 +75,10 @@ can_fire_msg(#state { time = T, timers = TS }, Msg) ->
         false -> false;
         {TP, _, _, _} -> T >= TP
     end.
-    
+
 trigger_msg_pre(S, [Msg]) -> can_fire_msg(S, Msg).
 trigger_msg_return(_S, [Msg]) -> Msg.
-    
+
 trigger_msg_next(#state { timers = TS } = S, _, [Msg]) ->
     {_, Ref, _, _} = lists:keyfind(Msg, 4, TS),
     S#state{ timers = lists:keydelete(Ref, 2, TS) }.
@@ -177,6 +175,4 @@ t() -> t(5).
 
 t(Secs) ->
     eqc:quickcheck(eqc:testing_time(Secs, eqc_statem:show_states(prop_component_correct()))).
-    
-    
--endif.
+

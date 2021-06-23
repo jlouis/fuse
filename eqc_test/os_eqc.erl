@@ -1,4 +1,4 @@
-%%% @author Thomas Arts 
+%%% @author Thomas Arts
 %%% @copyright (C) 2014, Quviq AB
 %%% @doc Showing that os:timestamp does not behave as expected
 %%%
@@ -6,8 +6,6 @@
 %%% Created : 26 Mar 2014 by Thomas Arts <thomas.arts@quviq.com>
 
 -module(os_eqc).
-
--ifdef(EQC_TESTING).
 
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
@@ -17,7 +15,7 @@
 initial_state() ->
   {0,0,0}.
 
-timestamp_command(_S) -> 
+timestamp_command(_S) ->
   {call, os, timestamp, []}.
 
 timestamp_next(_S, NewTime, []) ->
@@ -41,5 +39,3 @@ prop_os_par() ->
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)
 	  end).
-
--endif.

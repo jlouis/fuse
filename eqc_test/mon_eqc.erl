@@ -2,8 +2,6 @@
 
 -compile(export_all).
 
--ifdef(EQC_TESTING).
-
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
@@ -16,7 +14,7 @@
 }).
 
 %% API specification
-api_spec() -> 
+api_spec() ->
 	#api_spec {
 		language = erlang,
 		modules = [
@@ -37,7 +35,7 @@ g_fuse() ->
 	elements(fuses()).
 
 
-%% Bad idea to generate from the state in this way, rather use _args, 
+%% Bad idea to generate from the state in this way, rather use _args,
 %% since then precondition is considered!
 %% g_installed(#state { installed = Is }) ->
 %%	elements(Is).
@@ -59,7 +57,7 @@ install(_Name) ->
 install_pre(#state { installed = Is }, [Name]) ->
 	not lists:member(Name, Is).
 
-%% We might pick an existing fuse, but we will then filter with a precondition, 
+%% We might pick an existing fuse, but we will then filter with a precondition,
 %% which we anyway need for shrinking.
 install_args(_S) ->
 	[g_fuse()].
@@ -71,8 +69,8 @@ install_next(#state { installed = Is } = S, _V, [Name]) ->
 process(Entries) ->
 	make_table(Entries),
 	fuse_monitor ! timeout,
-	fuse_monitor:sync(). 
-	
+	fuse_monitor:sync().
+
 %% We even consider processing without any installed fuses
 process_args(#state { installed = Is }) ->
         [ [{I, g_state()} || I<-Is] ].
@@ -84,7 +82,7 @@ process_args(#state { installed = Is }) ->
 process_callouts(#state { alarms = Alarms, history = History }, [Entries]) ->
 	?SEQ(track_entries(Entries) ++
 	     callouts_from_history(Alarms, History, lists:sort(Entries))).
-	         
+
 track_entries(Entries) ->
     [?SELFCALL(track_history, [N, St]) || {N, St} <- Entries].
 
@@ -116,12 +114,12 @@ transition_alarms(Triggered, V, HEs) ->
 	    true when Blowns > 0 -> noop;
 	    true when Blowns == 0 -> clear
 	end.
-	    
+
 %%% Internal SELFCALLS
 set_next(#state { alarms = As } = S, _V, [Name]) ->
 	S#state { alarms = [Name | As] }.
-	
-clear_next(#state { alarms = As } = S, _V, [Name]) ->	
+
+clear_next(#state { alarms = As } = S, _V, [Name]) ->
 	S#state { alarms = [A || A <- As, A /= Name]}.
 
 track_history_next(#state { history = Installed } = S, _V, [N, V]) ->
@@ -135,11 +133,11 @@ track_history_next(#state { history = Installed } = S, _V, [N, V]) ->
      	  [V],
      	  Installed),
  	S#state { history = Update }.
- 
+
 startup() ->
 	{ok, _Pid} = fuse_monitor:start_link(),
 	ok.
-	
+
 cleanup() ->
 	process_flag(trap_exit, true),
 	exit(whereis(fuse_monitor), stoppitystop),
@@ -148,7 +146,7 @@ cleanup() ->
 	end,
 	process_flag(trap_exit, false),
 	ok.
-	
+
 %%% The property of the model
 prop_component_correct() ->
 	?SETUP(fun() ->
@@ -165,13 +163,13 @@ prop_component_correct() ->
 	  	pretty_commands(?MODULE, Cmds, {H, S, R},
 	  		aggregate(command_names(Cmds), R == ok))
 	  end))).
-	  
+
 %%% Internals
 make_table(Entries) ->
 	true = ets:delete_all_objects(?TAB),
 	true = ets:insert_new(?TAB, Entries),
 	ok.
-	
+
 mk_entries([{Name, [St | _]} | Rest]) ->
 	[{Name, St} | mk_entries(Rest)];
 mk_entries([{_Name, []} | Rest]) ->
@@ -182,5 +180,3 @@ take(N, L) when length(L) < N -> L;
 take(N, L) ->
 	{T, _} = lists:split(N, L),
 	T.
-
--endif.

@@ -3,8 +3,6 @@
 -module(fuse_eqc).
 -compile(export_all).
 
--ifdef(EQC_TESTING).
-
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_component.hrl").
 
@@ -54,8 +52,13 @@ g_split_float(Pivot) ->
    ]).
 
 
-%% fuses/0 is the list of fuses we support in the model for testing purposes.
-fuses() -> [phineas, ferb, candace, isabella, vanessa, perry, heinz].
+%% g_fuse_name/0 generates fuse names for use in the system
+g_fuse_name() ->
+    frequency([
+        {1, elements([phineas, ferb, candace, isabella, vanessa, perry, heinz])},
+        {1, nat()},
+        {1, {nat(), nat()}}
+    ]).
 
 %% g_atom/0 generates a simple atom from a short list.
 g_atom() ->
@@ -64,7 +67,7 @@ g_atom() ->
 %% g_name/0 generates one of the fuses at random.
 %% fault injects provably invalid names
 g_name() ->
-      fault(g_atom(), elements(fuses())).
+      fault(g_atom(), g_fuse_name()).
 
 g_disabled_name(#state { installed = IS }) ->
     elements([N || {N, F} <- IS, F#fuse.disabled == true]).
@@ -98,7 +101,8 @@ g_strategy() ->
 
 g_cmd() ->
     oneof(
-      [{delay, ?LET(N, nat(), N+1)},
+      [
+       %{delay, ?LET(N, nat(), N+1)},
        {barrier, g_atom()},
        {gradual, g_uniform_real()},
        heal]).
@@ -842,5 +846,3 @@ parse_cmds(Cmds) -> Cmds.
 in_period(Ts, Now, _) when Now < Ts -> false;
 in_period(Ts, Now, Period) when Now >= Ts ->
     (Now - Ts) < Period.
-
--endif.

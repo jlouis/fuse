@@ -8,10 +8,8 @@
 %%%-------------------------------------------------------------------
 -module(fuse_time_mock).
 
--ifdef(EQC_TESTING).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("pulse_otp/include/pulse_otp.hrl").
--endif.
 
 -export([start/1, init/2]).
 -export([monotonic_time/0,elapse_time/1]).
@@ -29,7 +27,7 @@ monotonic_time() ->
   after 1000 ->
       exit(timeout)
   end.
-    
+
 elapse_time(N) ->
   ?MODULE ! {elapse, self(), N},
   receive
@@ -47,7 +45,7 @@ start(Time) ->
       end;
     undefined ->
       spawn_link(?MODULE, init, [self(), Time]),
-      receive 
+      receive
 	ok -> ?MODULE
       end
   end.

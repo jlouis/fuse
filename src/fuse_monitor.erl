@@ -7,12 +7,6 @@
 -include_lib("pulse_otp/include/pulse_otp.hrl").
 -endif.
 
--ifdef(EQC_TESTING).
--define(SEND_AFTER, fuse_time_mock:send_after).
--else.
--define(SEND_AFTER, fuse_time:send_after).
--endif.
-
 -define(TAB, fuse_state).
 
 %% Lifetime
@@ -115,7 +109,7 @@ analyze(#state { history = Hs, alarms = CurAlarms } = S) ->
 names(Xs) -> [element(1, X) || X <- Xs].
 
 set_timer(#state { } = S) ->
-    ?SEND_AFTER(?PERIOD, self(), timeout),
+    fuse_time:send_after(?PERIOD, self(), timeout),
     S.
 
 intersect([A | As], Others) ->

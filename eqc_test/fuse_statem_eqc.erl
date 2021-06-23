@@ -2,8 +2,6 @@
 -module(fuse_statem_eqc).
 -compile(export_all).
 
--ifdef(EQC_TESTING).
-
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 
@@ -715,7 +713,6 @@ pulse_instrument(File) ->
     	{alarm_handler, '_', '_'}],
     io:format("Compiling: ~p~n", [File]),
     {ok, Mod} = compile:file(File, [{d, 'PULSE', true}, {d, 'WITH_PULSE', true},
-                                    {d, 'EQC_TESTING', true},
                                     {parse_transform, pulse_instrument},
                                     {pulse_side_effect, EffectFul}]),
   code:purge(Mod),
@@ -729,5 +726,3 @@ bind(M, F) ->
     {Write ++ Write2, S2}.
 
 val(V) -> {[], V}.
-
--endif.

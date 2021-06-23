@@ -269,15 +269,16 @@ To run the standard tests, execute:
 rebar3 ct
 ```
 
-To run the EQC tests, you have to
+To run the EQC tests, you need a working EQC installation in your erlang path. Then I tend to do:
 
 ```bash
-rebar3 as eqc ct
+rebar3 shell
+> cd("eqc_test").
+> make:all().
+> eqc_cluster:t(10).
 ```
 
-This compiles the fuse system with mocked time so the EQC system controls time. Then it runs the models against the code base. For manual testing, you need to make the same compilation by setting the flag `EQC_TESTING`.
-
-I am deliberately keeping them out of the travis build due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
+I am deliberately keeping them out of the CI chain due to the necessity of Erlang Quickcheck in order to be able to run tests. There are a set of models, each testing one aspect of the fuse system. Taken together, they provide excellent coverage of the fuse system as a whole.
 
 Great care has been taken in order to make sure fuse can be part of the error kernel of a system. The main fuse server is not supposed to crash under any circumstance. The monitoring application may crash since it is only part of the reporting. While important, it is not essential to correct operation.
 

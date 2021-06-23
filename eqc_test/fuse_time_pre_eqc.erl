@@ -1,4 +1,4 @@
-%%% @author Thomas Arts 
+%%% @author Thomas Arts
 %%% @copyright (C) 2014, Quviq AB
 %%% @doc Showing that the fuse_time_mock module behaves as expected
 %%%
@@ -8,7 +8,6 @@
 -module(fuse_time_pre_eqc).
 -compile(export_all).
 
--ifdef(EQC_TESTING).
 -include_lib("eqc/include/eqc.hrl").
 -include_lib("eqc/include/eqc_statem.hrl").
 
@@ -17,7 +16,7 @@ initial_state() ->
 
 monotonic_time() ->
     fuse_time_mock:monotonic_time().
-    
+
 monotonic_time_args(_S) -> [].
 
 monotonic_time_next(_S, NewTime, []) ->
@@ -28,7 +27,7 @@ monotonic_time_post(S, [], NewTime) ->
 
 elapse_time(Inc) ->
     fuse_time_mock:elapse_time(Inc).
-    
+
 elapse_time_args(_S) ->
     [?LET(N, choose(0, 1000*1000*1000), N+1)].
 
@@ -37,7 +36,7 @@ elapse_time_post(S, [_], NewTime) ->
 
 less(X,Y) when X=<Y -> true;
 less(X,Y) -> {X,'>=',Y}.
-  
+
 prop_seq() ->
   ?FORALL(Cmds, commands(?MODULE),
 	  begin
@@ -55,9 +54,3 @@ prop_par() ->
 	    pretty_commands(?MODULE, Cmds, {H, S, Res},
 			    Res == ok)
 	  end).
-
-
-
-
-
--endif.

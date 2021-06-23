@@ -16,12 +16,6 @@
 	remove_test/1
 ]).
 
--ifdef(EQC_TESTING).
--define(EQC_PRESENT, true).
--else.
--define(EQC_PRESENT, false).
--endif.
-
 %% ct.
 all() -> [
 	simple_test,
@@ -35,18 +29,13 @@ suite() ->
 	[{timetrap, {minutes, 2}}].
 
 init_per_suite(Config) ->
-     case ?EQC_PRESENT of
-       false ->
-		application:load(sasl),
-		application:set_env(sasl, sasl_error_logger, false),
-		application:set_env(sasl, errlog_type, error),
-		error_logger:tty(false),
-		ok = application:start(sasl),
-		{ok, _} = application:ensure_all_started(fuse),
-		Config;
-      true ->
-        {skip, running_eqc}
-    end.
+	application:load(sasl),
+	application:set_env(sasl, sasl_error_logger, false),
+	application:set_env(sasl, errlog_type, error),
+	error_logger:tty(false),
+	ok = application:start(sasl),
+	{ok, _} = application:ensure_all_started(fuse),
+	Config.
 
 end_per_suite(_Config) ->
 	application:stop(fuse),

@@ -24,6 +24,18 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.4.3
+
+Another maintenance release, but with one feature
+
+* Feature: a fuse is now identified by `term()` rather than `atom()`. This has also been tested to
+  work as expected.
+* Finally dropped Erlang/OTP release 16 and earlier support from time handling.
+* EQC test cases have been moved to their own directory, which should clean up some handling.
+
+### 2.4.2
+
+Just a simply maintenance release for [Hex](https://hex.pm)
 ### 2.4.1
 
 Maintenance release. Several grave errors were removed due to the extension of the QuickCheck model to also include timing:

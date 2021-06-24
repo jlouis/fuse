@@ -60,6 +60,7 @@ can_fire(#state { time = T, timers = TS }, Ref) ->
          {TP, _, _, _} -> T >= TP
      end.
 
+%% General trigger of a timer with a message
 trigger_pre(S, [{tref, Ref}]) -> can_fire(S, Ref).
 
 trigger_return(#state { timers = TS }, [{tref, Ref}]) ->
@@ -76,6 +77,9 @@ can_fire_msg(#state { time = T, timers = TS }, Msg) ->
         {TP, _, _, _} -> T >= TP
     end.
 
+%% Targeted trigger. Used to check if a given particular message
+%% can be fired. It can be used to "select" among several possible
+%% messages
 trigger_msg_pre(S, [Msg]) -> can_fire_msg(S, Msg).
 trigger_msg_return(_S, [Msg]) -> Msg.
 

@@ -23,6 +23,8 @@
           installed = [] :: [{term(), #fuse{} }] % List of installed fuses, with their configuration.
 }).
 
+%% Fuses require sync context for their correct operations w.r.t linearization.
+%% Otherwise, you might get stale reads.
 -define(CONTEXT, sync).
 
 %% -- MOCKING ------------------------------------------------
@@ -61,21 +63,23 @@ g_fuse_name() ->
     ]).
 
 %% g_atom/0 generates a simple atom from a short list.
+%% It's important that these atoms doesn't occur in g_fuse_name/0.
 g_atom() ->
-    oneof([a,b,c,d,e,f]).
+    oneof([invalid_a
+           invalid_b
+           invalid_c
+           invalid_d
+           invalid_e
+           invalid_f]).
 
 %% g_name/0 generates one of the fuses at random.
 %% fault injects provably invalid names
 g_name() ->
       fault(g_atom(), g_fuse_name()).
 
+%% g_disabled_name/1 generated a fuse which has been disabled
 g_disabled_name(#state { installed = IS }) ->
     elements([N || {N, F} <- IS, F#fuse.disabled == true]).
-
-%% Thomas says this is a bad idea, since we can rule out the name by a precondition (_pre/3)
-%% As a result we stopped using functions like these.
-%% g_installed(S) ->
-%%    fault(g_name(), oneof(installed_names(S))).
 
 %% g_neg_int/0 Generates a negative integer, or 0
 g_neg_int() ->
@@ -99,19 +103,21 @@ g_strategy() ->
         ])
     ).
 
+%% g_cmd/0 generates a command for the internal command language of the fuse
+%% system.
 g_cmd() ->
     oneof(
       [
-       %{delay, ?LET(N, nat(), N+1)},
+       {delay, ?LET(N, nat(), N+1)},
        {barrier, g_atom()},
        {gradual, g_uniform_real()},
        heal]).
 
-%% g_refresh()/0 generates a refresh setting.
+%% g_refresh/0 generates a refresh setting.
 g_refresh() ->
     oneof([{reset, choose(1, 60000)}]).
 
-%% g_options() generates install options
+%% g_options/0 generates install options
 g_options() ->
     {g_strategy(), g_refresh()}.
 
@@ -122,6 +128,8 @@ g_time_inc() ->
 
 %% initial_state/0 generates the initial system state
 initial_state() -> #state{}.
+
+%% ---- RECEIVING RESET TIMER MESSAGES MESSAGES ------------------------------------------------------
 
 %% fuse_reset/2 sends timer messages into the SUT
 %% ---------------------------------------------------------------
@@ -168,7 +176,7 @@ fuses_with_timers(#state { installed = Installed }) ->
     [{N, Ref} || {N, #fuse{ timer = Ref }} <- Installed,
                  Ref /= undefined].
 
-%% -- INSTALLATION ------------------------------------------------------
+%% ---- INSTALLATION ------------------------------------------------------
 
 %% install/2 puts a new fuse into the system
 %% ---------------------------------------------------------------
@@ -214,7 +222,7 @@ install_features(S, [Name, Opts], _R) ->
             end
     end.
 
-%% -- DISABLING AND ENABLING CIRCUITS ----------------------------------
+%% ---- DISABLING AND ENABLING CIRCUITS ----------------------------------
 
 %% circuit_disable/1 disables a fuse manually
 %%
@@ -282,7 +290,7 @@ circuit_enable_features(S, [Name], _V) ->
         true -> [{fuse_eqc, r20, enable_installed, {blown, is_blown(S, Name)}}]
     end.
 
-%% -- NORMAL OPERATION -----------------------------------------------
+%% ---- NORMAL OPERATION -----------------------------------------------
 
 %% reset/1 resets a fuse back to its initial state
 %% ---------------------------------------------------------------

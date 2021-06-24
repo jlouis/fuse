@@ -166,8 +166,8 @@ inject_reset_callouts(S, [Name, TRef]) ->
         false ->
             ?EMPTY;
         true ->
-            %?APPLY(remove_timer, [Name, TRef])
-            ?APPLY(exec_reset, [Name])
+            ?APPLY(exec_reset, [Name]),
+            ?APPLY(remove_timer, [Name, TRef])
     end,
     ?RET(ok).
 
@@ -559,6 +559,7 @@ clear_blown_callouts(S, [Name]) ->
     case blown_ref(S, Name) of
         not_found -> ?EMPTY;
         ok -> ?EMPTY;
+        no_timer -> ?EMPTY;
         Ref ->
             ?APPLY(fuse_time_eqc, cancel_timer, [Ref])
     end.
@@ -629,7 +630,6 @@ send_after_callouts(_S, [Name, Ms]) ->
            ?APPLY(fuse_time_eqc, send_after, [Ms, ?WILDCARD, {reset, Name}])),
     ?APPLY(check_no_timer, [Name]),
     ?APPLY(add_timer, [Name, TRef]).
-
 
 remove_timer_next(S, _, [Name, TRef]) ->
     with_fuse(S, Name,
@@ -783,7 +783,7 @@ blown_ref(S, Name) ->
         not_found ->
             not_found;
         #fuse { state = {blown, _}, timer = undefined } ->
-            impossible;
+            no_timer;
         #fuse { state = {blown, _}, timer = R } ->
             R;
         #fuse { state = ok } ->

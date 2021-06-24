@@ -33,6 +33,10 @@ initial_state() -> #state{}.
 %%
 
 advance_time(_) -> ok.
+
+advance_time_pre(#state { timers = [] }) -> false;
+advance_time_pre(#state {}) -> true.
+
 advance_time_args(_S) ->
     T = frequency([
         {10, ?LET(K, nat(), K+1)},

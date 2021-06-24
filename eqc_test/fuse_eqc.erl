@@ -166,6 +166,7 @@ inject_reset_callouts(S, [Name, TRef]) ->
         false ->
             ?EMPTY;
         true ->
+            %?APPLY(remove_timer, [Name, TRef])
             ?APPLY(exec_reset, [Name])
     end,
     ?RET(ok).

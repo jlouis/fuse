@@ -65,11 +65,11 @@ g_fuse_name() ->
 %% g_atom/0 generates a simple atom from a short list.
 %% It's important that these atoms doesn't occur in g_fuse_name/0.
 g_atom() ->
-    oneof([invalid_a
-           invalid_b
-           invalid_c
-           invalid_d
-           invalid_e
+    oneof([invalid_a,
+           invalid_b,
+           invalid_c,
+           invalid_d,
+           invalid_e,
            invalid_f]).
 
 %% g_name/0 generates one of the fuses at random.
@@ -131,30 +131,36 @@ initial_state() -> #state{}.
 
 %% ---- RECEIVING RESET TIMER MESSAGES MESSAGES ------------------------------------------------------
 
-%% fuse_reset/2 sends timer messages into the SUT
+%% inject_reset/2 sends timer messages into the SUT
 %% ---------------------------------------------------------------
 %% Heal a fuse which has been blown in the system.
-fuse_reset(Name, _TRef) ->
+inject_reset(Name, _TRef) ->
     fuse_server ! {reset, Name},
     fuse_server:sync(), %% synchronize to avoid a race condition.
     ok.
 
+%% Return the fuses which have timers, because these are the ones you
+%% can reset explicitly.
+fuses_with_timers(#state { installed = Installed }) ->
+    [{N, Ref} || {N, #fuse{ timer = Ref }} <- Installed,
+                 Ref /= undefined].
+
 %% You can reset a fuse if there is a blown fuse in the system.
-fuse_reset_pre(S) ->
+inject_reset_pre(S) ->
     fuses_with_timers(S) /= [].
 
-fuse_reset_args(S) ->
-    ?LET({N, T}, elements(fuses_with_timers(S)),
-         [N, T]).
+%% Generate one of the fuses with a timer
+inject_reset_args(S) ->
+    ?LET({Name, TRef}, elements(fuses_with_timers(S)),
+         [Name, TRef]).
 
 %% Fuses will only be reset if their state is among the installed and
-%% are blown. TODO: Lift this restriction later on when the other
-%% parts of the model works better.
-fuse_reset_pre(S, [Name, _]) ->
+%% are blown.
+inject_reset_pre(S, [Name, _]) ->
     is_installed(S, Name) andalso is_blown(S, Name).
 
 %% Note: when a fuse heals, the internal state is reset.
-fuse_reset_callouts(S, [Name, TRef]) ->
+inject_reset_callouts(S, [Name, TRef]) ->
     ?APPLY(fuse_time_eqc, trigger, [TRef]),
     case is_blown(S, Name) of
         false ->
@@ -164,17 +170,12 @@ fuse_reset_callouts(S, [Name, TRef]) ->
     end,
     ?RET(ok).
 
-fuse_reset_features(S, [Name, _], _Response) ->
+inject_reset_features(S, [Name, _], _Response) ->
     case is_installed(S, Name) of
-        false -> [{fuse_eqc, r01, reset_non_installed}];
-        true -> [{fuse_eqc, r02, {reset_installed_fuse, is_blown(S, Name)}}]
+        false -> [{fuse_eqc, r01, inject_reset_non_installed}];
+        true -> [{fuse_eqc, r02, {inject_reset_installed_fuse, is_blown(S, Name)}}]
     end.
 
-%% Return the fuses which have timers, because these are the ones you
-%% can reset explicitly.
-fuses_with_timers(#state { installed = Installed }) ->
-    [{N, Ref} || {N, #fuse{ timer = Ref }} <- Installed,
-                 Ref /= undefined].
 
 %% ---- INSTALLATION ------------------------------------------------------
 
@@ -192,7 +193,7 @@ install_args(_S) ->
     [g_name(), g_options()].
 
 %% When installing new fuses, the internal state is reset for the fuse.
-%% Also, consider if the installed is valid at all.
+%% Also, consider if the installed fuse is valid at all.
 install_callouts(_S, [Name, Opts]) ->
     #fuse{ period = P } = Fuse = parse_fuse(Opts),
     ?APPLY(fuse_time_eqc, convert_time_unit, [P, milli_seconds, native]),
@@ -290,7 +291,7 @@ circuit_enable_features(S, [Name], _V) ->
         true -> [{fuse_eqc, r20, enable_installed, {blown, is_blown(S, Name)}}]
     end.
 
-%% ---- NORMAL OPERATION -----------------------------------------------
+%% ---- MANUALLY RESET THE FUSE STATE -----------------------------------------------
 
 %% reset/1 resets a fuse back to its initial state
 %% ---------------------------------------------------------------
@@ -318,6 +319,8 @@ reset_features(S, [Name], _V) ->
         false -> [{fuse_eqc, r05, reset_uninstalled_fuse}];
         true -> [{fuse_eqc, r06, reset_installed, {blown, is_blown(S, Name)}}]
     end.
+
+%% ---- ASK ABOUT FUSE STATE -----------------------------------------------
 
 %%% ask/1 asks about the state of a fuse that exists
 %% ---------------------------------------------------------------
@@ -355,6 +358,8 @@ ask_features(S, [Name], _V) ->
        true -> [{fuse_eqc, r15, ask_installed}];
        false -> [{fuse_eqc, r16, ask_uninstalled}]
     end.
+
+%% ---- RUN HELPER -----------------------------------------------
 
 %%% run/1 runs a function (thunk) on the circuit breaker
 %% ---------------------------------------------------------------
@@ -401,6 +406,9 @@ run_features(S, [Name, melt, _, _], _R) ->
     false ->
       [{fuse_eqc, r10, run_on_uninstalled_fuse}]
   end.
+
+%% ---- MELT -----------------------------------------------
+
 
 %%% melt/1 melts the fuse a little bit
 %% ---------------------------------------------------------------
@@ -461,6 +469,8 @@ process_melt_callouts(_S, [Name, Ts]) ->
     ?APPLY(expire_melts, [Name, Period, Ts]),
     ?APPLY(record_melt_history, [Name]).
 
+%% ---- REMOVE -----------------------------------------------
+
 %% remove/1 removes a fuse
 %% ---------------------------------------------------------------
 remove(Name) ->
@@ -498,7 +508,7 @@ remove_features(S, [Name], _V) ->
         true -> [{fuse_eqc, r18, remove_installed_fuse}]
     end.
 
-%% -- LOOKUP FUSE STATE (INTERNAL CALL) --------------------------------------------------------
+%% ---- LOOKUP FUSE STATE (INTERNAL CALL) --------------------------------
 
 lookup_callouts(S, [Name]) ->
     case lookup_fuse(S, Name) of
@@ -515,12 +525,11 @@ lookup_callouts(S, [Name]) ->
     end.
 
 
-%% -- RECORD MELT (INTERNAL CALL) -----------------------------
+%% ---- RECORD MELT (INTERNAL CALL) -----------------------------
 record_melt_next(#state { melts = Ms } = S, _, [Name, Ts]) ->
     S#state { melts = [{Name, Ts} | Ms] }.
 
-%% -- EXPIRE MELTS (INTERNAL CALL) ---------------------------
-%%
+%% ---- EXPIRE MELTS (INTERNAL CALL) ---------------------------
 expire_melts_next(#state { melts = Ms } = S, _, [Who, Period, Now]) ->
     Updated = [{Name, Ts} || {Name, Ts} <- Ms, Name /= Who orelse in_period(Ts, Now, Period)],
     S#state { melts = Updated }.
@@ -532,21 +541,19 @@ expire_melts_features(#state { melts = Ms }, [Who, Period, Now], _) ->
         false -> []
     end.
 
-%% -- COMPUTING FUSE PERIODS (INTERNAL CALL) ------------------------------
+%% ---- COMPUTING FUSE PERIODS (INTERNAL CALL) ------------------------------
 fuse_period_return(#state { installed = Is }, [Name]) ->
     {_, #fuse{ period = Period }} = lists:keyfind(Name, 1, Is),
     Period.
 
-%% -- RECORD MELT HISTORY (INTERNAL CALL) -------------------------
-%%
+%% ---- RECORD MELT HISTORY (INTERNAL CALL) -------------------------
 record_melt_history_callouts(S, [Name]) ->
     ?WHEN(melt_state(S, Name) == blown
 		andalso not is_blown(S, Name)
 		andalso not is_disabled(S, Name),
         ?APPLY(blow_fuse, [Name])).
 
-%% -- VARIOUS SMALLER INTERNAL CALLS --------------------------------
-%%
+%% ---- VARIOUS SMALLER INTERNAL CALLS --------------------------------
 clear_blown_callouts(S, [Name]) ->
     case blown_ref(S, Name) of
         not_found -> ?EMPTY;
@@ -668,7 +675,7 @@ weight(_, reset) -> 2;
 weight(_, run) -> 5;
 weight(_, melt) -> 1;
 weight(_, melt_installed) -> 40;
-weight(_, fuse_reset) -> 100;
+weight(_, inject_reset) -> 100;
 weight(_, ask) -> 1;
 weight(_, ask_installed) -> 30;
 weight(_, remove) -> 1;

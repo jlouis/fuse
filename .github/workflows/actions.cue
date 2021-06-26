@@ -23,7 +23,7 @@ package actions
 }
 #Steps: #Uses | #Run
 
-#OS_Version: *"ubuntu-latest" | "macos-latest" | "windows_latest"
+#OS_Version: *"ubuntu-latest" | "macos-latest" | "windows-latest"
 
 #Jobs: ci: {
 	name:      string

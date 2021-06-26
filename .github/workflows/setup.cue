@@ -1,7 +1,10 @@
 package actions
 
-name: #Name & "build"
-on:   #On & {
+name: #Name
+name: "build"
+
+on: #On
+on: {
 	push: branches: [
 		_branch,
 	]

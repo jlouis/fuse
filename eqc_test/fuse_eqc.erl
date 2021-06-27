@@ -202,15 +202,21 @@ install_callouts(_S, [Name, Opts]) ->
         false ->
             ?RET(badarg);
         true ->
-            ?APPLY(install_fuse, [Name, {Name, Fuse}]),
+            ?APPLY(install_fuse, [Name, Fuse]),
             ?APPLY(clear_blown, [Name]),
             ?APPLY(clear_melts, [Name]),
             ?RET(ok)
     end.
 
 %% Internal helper
-install_fuse_next(#state { installed = Is } = S, _, [Name, T]) ->
-    S#state { installed = lists:keystore(Name, 1, Is, T) }.
+install_fuse_next(#state { installed = Is } = S, _, [Name, Fuse]) ->
+    %% Copy the disabled state from a fuse which is already here,
+    %% if applicable
+    NewFuse = case lists:keysearch(Name, 1, Is) of
+                  false -> Fuse;
+                  {value, {Name, Old}} -> Fuse#fuse{ disabled = Old#fuse.disabled }
+              end,
+    S#state { installed = lists:keystore(Name, 1, Is, {Name, NewFuse}) }.
 
 install_features(S, [Name, Opts], _R) ->
     case valid_opts(Opts) of

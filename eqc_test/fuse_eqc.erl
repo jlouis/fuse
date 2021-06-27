@@ -211,7 +211,7 @@ install_callouts(_S, [Name, Opts]) ->
 %% Internal helper
 install_fuse_next(#state { installed = Is } = S, _, [Name, Fuse]) ->
     %% Copy the disabled state from a fuse which is already here,
-    %% if applicable
+    %% if applicable.
     NewFuse = case lists:keysearch(Name, 1, Is) of
                   false -> Fuse;
                   {value, {Name, Old}} -> Fuse#fuse{ disabled = Old#fuse.disabled }

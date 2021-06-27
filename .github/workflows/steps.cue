@@ -1,3 +1,4 @@
+// Steps specific to the project
 package actions
 
 // Versions for simplicity
@@ -8,8 +9,10 @@ _versions: {
 	rebar3: "3.16.1"
 }
 
+// What branch are we interested in?
 _branch: "master"
 
+// Job steps
 jobs: ci: steps:
 [
 	{

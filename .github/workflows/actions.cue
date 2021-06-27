@@ -1,3 +1,4 @@
+// General type-level definitions for github packages
 package actions
 
 #Name: string
@@ -23,7 +24,7 @@ package actions
 }
 #Steps: #Uses | #Run
 
-#OS_Version: *"ubuntu-latest" | "macos-latest" | "windows-latest"
+#OS_Version: "ubuntu-latest" | "macos-latest" | "windows-latest"
 
 #Jobs: ci: {
 	name:      string

@@ -568,13 +568,13 @@ record_melt_history_callouts(S, [Name]) ->
 clear_blown_callouts(S, [Name]) ->
     case blown_ref(S, Name) of
         not_found -> ?EMPTY;
-        ok -> ?EMPTY;
         no_timer -> ?EMPTY;
         Ref ->
             ?APPLY(fuse_time_eqc, cancel_timer, [Ref])
-    end.
+    end,
+    ?APPLY(clear_blown_fuse, [Name]).
 
-clear_blown_next(S, _, [Name]) ->
+clear_blown_fuse_next(S, _, [Name]) ->
     with_fuse(S, Name, fun(F) -> F#fuse{ state = ok, timer = undefined } end).
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
@@ -792,12 +792,10 @@ blown_ref(S, Name) ->
     case fuse(S, Name) of
         not_found ->
             not_found;
-        #fuse { state = {blown, _}, timer = undefined } ->
+        #fuse { timer = undefined } ->
             no_timer;
-        #fuse { state = {blown, _}, timer = R } ->
-            R;
-        #fuse { state = ok } ->
-            ok
+        #fuse { timer = Ref } ->
+            Ref
     end.
 
 installed_fuse_names(#state { installed = Is }) ->

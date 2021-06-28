@@ -211,10 +211,14 @@ install_callouts(_S, [Name, Opts]) ->
 %% Internal helper
 install_fuse_next(#state { installed = Is } = S, _, [Name, Fuse]) ->
     %% Copy the disabled state from a fuse which is already here,
-    %% if applicable.
+    %% if applicable. Also copy the timer state into the updated fuse.
+    %% This allows the clear_blown call to correctly remove the timer
+    %% from the timing system. Otherwise, there's no timer and the
+    %% model will fail because of an unexpected timer cancellation.
     NewFuse = case lists:keysearch(Name, 1, Is) of
                   false -> Fuse;
-                  {value, {Name, Old}} -> Fuse#fuse{ disabled = Old#fuse.disabled }
+                  {value, {Name, Old}} -> Fuse#fuse{ disabled = Old#fuse.disabled,
+                                                     timer = Old#fuse.timer }
               end,
     S#state { installed = lists:keystore(Name, 1, Is, {Name, NewFuse}) }.
 

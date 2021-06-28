@@ -571,7 +571,7 @@ clear_blown_callouts(S, [Name]) ->
     end.
 
 clear_blown_next(S, _, [Name]) ->
-    with_fuse(S, Name, fun(F) -> F#fuse{ state = ok } end).
+    with_fuse(S, Name, fun(F) -> F#fuse{ state = ok, timer = undefined } end).
 
 clear_melts_next(#state { melts = Ms } = S, _, [Name]) ->
     S#state { melts =

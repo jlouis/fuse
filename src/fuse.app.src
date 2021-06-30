@@ -6,6 +6,5 @@
               {applications,[kernel,stdlib,sasl]},
               {mod,{fuse_app,[]}},
               {env,[{monitor,true}]},
-              {maintainers,["Jesper Louis Andersen"]},
               {licenses,["MIT"]},
               {links,[{"Github","https://github.com/jlouis/fuse"}]}]}.

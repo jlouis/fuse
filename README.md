@@ -24,6 +24,10 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.5.0
+
+* Feature: Allow the `MaxR` value in standard fuses to be 0 (Danila Fediashchin)
+
 ### 2.4.5
 
 * Fix: fuse_monitor crashes when using fault injection fuses.
@@ -44,6 +48,7 @@ Another maintenance release, but with one feature
 ### 2.4.2
 
 Just a simply maintenance release for [Hex](https://hex.pm)
+
 ### 2.4.1
 
 Maintenance release. Several grave errors were removed due to the extension of the QuickCheck model to also include timing:

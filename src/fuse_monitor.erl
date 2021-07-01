@@ -85,7 +85,7 @@ track_histories(Fuses, Hist) ->
 update({Name, blown}, Hist) ->
     E = {Name, 3},
     [ E | lists:keydelete(Name, 1, Hist) ];
-update({Name, ok}, Hist) ->
+update({Name, _}, Hist) ->
     case lists:keytake(Name, 1, Hist) of
         false -> Hist;
         {value, {Name, V}, Remain} -> [{Name, clamp(0, V-1, 3)} | Remain]

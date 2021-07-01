@@ -665,18 +665,20 @@ next_command_features(S, [Name], _) ->
 
 %%% Command weight distribution
 %% ---------------------------------------------------------------
-weight(_, elapse_time) -> 5;
-weight(_, install) -> 1;
-weight(_, reset) -> 2;
-weight(_, run) -> 5;
-weight(_, melt) -> 1;
-weight(_, melt_installed) -> 40;
-weight(_, inject_reset) -> 100;
-weight(_, ask) -> 1;
-weight(_, ask_installed) -> 30;
-weight(_, remove) -> 1;
-weight(_, circuit_disable) -> 1;
-weight(_, circuit_enable) -> 1.
+weight(_, elapse_time) -> 50;
+weight(_, install) -> 10;
+weight(_, reset) -> 20;
+weight(#state { installed = []}, run) -> 1;
+weight(#state {}, run) -> 50;
+weight(_, melt) -> 10;
+weight(_, melt_installed) -> 400;
+weight(_, inject_reset) -> 1000;
+weight(_, ask) -> 10;
+weight(_, ask_installed) -> 300;
+weight(#state { installed = [] }, remove) -> 1;
+weight(#state {}, remove) -> 10;
+weight(_, circuit_disable) -> 10;
+weight(_, circuit_enable) -> 10.
 
 %%% PROPERTIES
 %% ---------------------------------------------------------------

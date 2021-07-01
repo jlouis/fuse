@@ -4,7 +4,10 @@ _build
 current_counterexample.eqc
 *.d
 deps
-doc
+doc/*.html
+doc/edoc-info
+doc/erlang.png
+doc/stylesheet.css
 ebin/*.app
 ebin/*.beam
 .eministat.plt

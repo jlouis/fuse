@@ -1,7 +1,7 @@
 @author Jesper Louis Andersen <jesper.louis.andersen@gmail.com>
 @copyright 2014–2021 Jesper Louis Andersen
 @title fuse - a circuit breaker for Erlang
-@2.4.x
+@2.4.4
 
 @doc
 

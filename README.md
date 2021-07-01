@@ -24,6 +24,14 @@ We use semantic versioning. In release `X.Y.Z` we bump
 * `Y` whenever we add additional—but backwards compatible—functionality
 * `Z` whenever we do a point release fixing bugs
 
+### 2.4.5
+
+* Fix: fuse_monitor crashes when using fault injection fuses.
+
+### 2.4.4
+
+Maintenance. No functional changes to the code, but tests were updated.
+
 ### 2.4.3
 
 Another maintenance release, but with one feature

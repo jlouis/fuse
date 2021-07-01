@@ -7,9 +7,17 @@
 -type time() :: integer().
 -type time_ref() :: integer().
 
+-record(timer, {
+    point :: time(),
+    ref :: time_ref(),
+    owner :: pid(),
+    msg :: term()
+}).
+-type timer() :: #timer{}.
+
 -record(state, {
 	time = 0 :: time(),
-	timers = [] :: [{time(), time_ref(), term(), term()}],
+	timers = [] :: [timer()],
 	time_ref = 0 :: time_ref()
 }).
 
@@ -39,11 +47,12 @@ advance_time_pre(#state {}) -> true.
 
 advance_time_args(#state{ time = T }) ->
     ?LET(A, frequency([
-        {10, ?LET(K, nat(), K+1)},
-        {10, ?LET({K, N}, {nat(), nat()}, (N+1)*1000 + K)},
-        {10, ?LET({K, N, M}, {nat(), nat(), nat()}, (M+1)*60*1000 + N*1000 + K)},
-        {1, ?LET({K, N, Q}, {nat(), nat(), nat()}, (Q*17)*60*1000 + N*1000 + K)}
-    ]), [T + A]).
+                 {10, ?LET(K, nat(), K+1)},
+                 {10, ?LET({K, N}, {nat(), nat()}, (N+1)*1000 + K)},
+                 {10, ?LET({K, N, M}, {nat(), nat(), nat()}, (M+1)*60*1000 + N*1000 + K)},
+                 {1, ?LET({K, N, Q}, {nat(), nat(), nat()}, (Q*17)*60*1000 + N*1000 + K)}
+                ]),
+        [T + A]).
 
 advance_time_next(State, _, [T]) ->
     State#state { time = T }.
@@ -58,7 +67,7 @@ advance_time_features(_, _, _) -> [{fuse_time, r00, advance_time}].
 %% only be picked if you can trigger the timer.
 
 can_fire(#state { time = T, timers = TS }, Ref) ->
-     case lists:keyfind(Ref, 2, TS) of
+     case lists:keyfind(Ref, #timer.ref, TS) of
          false -> false;
          {TP, _, _, _} -> T >= TP
      end.
@@ -67,15 +76,15 @@ can_fire(#state { time = T, timers = TS }, Ref) ->
 trigger_pre(S, [{tref, Ref}]) -> can_fire(S, Ref).
 
 trigger_return(#state { timers = TS }, [{tref, Ref}]) ->
-    case lists:keyfind(Ref, 2, TS) of
+    case lists:keyfind(Ref, #timer.ref, TS) of
         {_TP, _Ref, _Pid, Msg} -> Msg
     end.
 
 trigger_next(#state { timers = TS } = S, _, [{tref, Ref}]) ->
-    S#state{ timers = lists:keydelete(Ref, 2, TS) }.
+    S#state{ timers = lists:keydelete(Ref, #timer.ref, TS) }.
 
 can_fire_msg(#state { time = T, timers = TS }, Msg) ->
-    case lists:keyfind(Msg, 4, TS) of
+    case lists:keyfind(Msg, #timer.msg, TS) of
         false -> false;
         {TP, _, _, _} -> T >= TP
     end.
@@ -87,8 +96,8 @@ trigger_msg_pre(S, [Msg]) -> can_fire_msg(S, Msg).
 trigger_msg_return(_S, [Msg]) -> Msg.
 
 trigger_msg_next(#state { timers = TS } = S, _, [Msg]) ->
-    {_, Ref, _, _} = lists:keyfind(Msg, 4, TS),
-    S#state{ timers = lists:keydelete(Ref, 2, TS) }.
+    {_, Ref, _, _} = lists:keyfind(Msg, #timer.msg, TS),
+    S#state{ timers = lists:keydelete(Ref, #timer.ref, TS) }.
 
 %% INTERNAL CALLS IN THE MODEL
 %% -------------------------------------------
@@ -135,13 +144,13 @@ cancel_timer_callouts(S, [{tref, TRef}]) ->
     ?RET(Return).
 
 cancel_timer_rv(#state { time = T, timers = TS }, TRef) ->
-    case lists:keyfind(TRef, 2, TS) of
+    case lists:keyfind(TRef, #timer.ref, TS) of
         false -> false;
         {TriggerPoint, TRef, _Pid, _Msg} -> monus(TriggerPoint, T)
     end.
 
 cancel_timer_next(#state { timers = TS } = S, _, [{tref, TRef}]) ->
-    S#state { timers = lists:keydelete(TRef, 2, TS) }.
+    S#state { timers = lists:keydelete(TRef, #timer.ref, TS) }.
 
 %% HELPER ROUTINES
 %% ----------------------------------------

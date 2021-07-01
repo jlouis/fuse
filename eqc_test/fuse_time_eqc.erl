@@ -45,14 +45,26 @@ advance_time(_) -> ok.
 advance_time_pre(#state { timers = [] }) -> false;
 advance_time_pre(#state {}) -> true.
 
-advance_time_args(#state{ time = T }) ->
-    ?LET(A, frequency([
-                 {10, ?LET(K, nat(), K+1)},
-                 {10, ?LET({K, N}, {nat(), nat()}, (N+1)*1000 + K)},
-                 {10, ?LET({K, N, M}, {nat(), nat(), nat()}, (M+1)*60*1000 + N*1000 + K)},
-                 {1, ?LET({K, N, Q}, {nat(), nat(), nat()}, (Q*17)*60*1000 + N*1000 + K)}
-                ]),
-        [T + A]).
+timers(#state { time = T, timers = TS}) ->
+    %% Guard against an empty set. We only want timers in the future,
+    %% Or advancing time can move backwards. So we only want trigger
+    %% points that are larger than the current time.
+    %%
+    %% However, we might have no such eligible timers. In that case,
+    %% return the current time.
+    case [P || #timer { point = P} <- TS, P >= T] of
+        [] -> [T];
+        List -> List
+    end.
+
+advance_time_args(#state{ time = T } = State) ->
+    [frequency([
+        {10, ?LET({N, K}, {elements(timers(State)), nat()}, N+K)},
+        {2, ?LET(K, nat(), T+K+1)},
+        {2, ?LET({K, N}, {nat(), nat()}, T + (N+1)*1000 + K)},
+        {2, ?LET({K, N, M}, {nat(), nat(), nat()}, T + (M+1)*60*1000 + N*1000 + K)},
+        {1, ?LET({K, N, Q}, {nat(), nat(), nat()}, T + (Q*17)*60*1000 + N*1000 + K)}
+    ])].
 
 advance_time_next(State, _, [T]) ->
     State#state { time = T }.
@@ -69,7 +81,7 @@ advance_time_features(_, _, _) -> [{fuse_time, r00, advance_time}].
 can_fire(#state { time = T, timers = TS }, Ref) ->
      case lists:keyfind(Ref, #timer.ref, TS) of
          false -> false;
-         {TP, _, _, _} -> T >= TP
+         #timer { point = TP } -> T >= TP
      end.
 
 %% General trigger of a timer with a message
@@ -77,7 +89,7 @@ trigger_pre(S, [{tref, Ref}]) -> can_fire(S, Ref).
 
 trigger_return(#state { timers = TS }, [{tref, Ref}]) ->
     case lists:keyfind(Ref, #timer.ref, TS) of
-        {_TP, _Ref, _Pid, Msg} -> Msg
+        #timer { msg = Msg } -> Msg
     end.
 
 trigger_next(#state { timers = TS } = S, _, [{tref, Ref}]) ->
@@ -86,7 +98,7 @@ trigger_next(#state { timers = TS } = S, _, [{tref, Ref}]) ->
 can_fire_msg(#state { time = T, timers = TS }, Msg) ->
     case lists:keyfind(Msg, #timer.msg, TS) of
         false -> false;
-        {TP, _, _, _} -> T >= TP
+        #timer{ point = TP} -> T >= TP
     end.
 
 %% Targeted trigger. Used to check if a given particular message
@@ -96,7 +108,7 @@ trigger_msg_pre(S, [Msg]) -> can_fire_msg(S, Msg).
 trigger_msg_return(_S, [Msg]) -> Msg.
 
 trigger_msg_next(#state { timers = TS } = S, _, [Msg]) ->
-    {_, Ref, _, _} = lists:keyfind(Msg, #timer.msg, TS),
+    #timer { ref = Ref } = lists:keyfind(Msg, #timer.msg, TS),
     S#state{ timers = lists:keydelete(Ref, #timer.ref, TS) }.
 
 %% INTERNAL CALLS IN THE MODEL
@@ -134,7 +146,13 @@ send_after_callouts(#state { time_ref = Ref}, [Timeout, Pid, Msg]) when is_pid(P
 
 send_after_next(#state { time = T, time_ref = Ref, timers = TS } = S, _, [Timeout, Pid, Msg]) ->
     TriggerPoint = T + Timeout,
-    S#state { time_ref = Ref + 1, timers = TS ++ [{TriggerPoint, Ref, Pid, Msg}] }.
+    Timer = #timer {
+        point = TriggerPoint,
+        ref = Ref,
+        owner = Pid,
+        msg = Msg
+    },
+    S#state { time_ref = Ref + 1, timers = TS ++ [Timer] }.
 
 cancel_timer_callers() -> [fuse_server].
 
@@ -146,7 +164,7 @@ cancel_timer_callouts(S, [{tref, TRef}]) ->
 cancel_timer_rv(#state { time = T, timers = TS }, TRef) ->
     case lists:keyfind(TRef, #timer.ref, TS) of
         false -> false;
-        {TriggerPoint, TRef, _Pid, _Msg} -> monus(TriggerPoint, T)
+        #timer { point = TriggerPoint, ref = TRef } -> monus(TriggerPoint, T)
     end.
 
 cancel_timer_next(#state { timers = TS } = S, _, [{tref, TRef}]) ->

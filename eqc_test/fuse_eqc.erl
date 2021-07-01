@@ -103,16 +103,6 @@ g_strategy() ->
         ])
     ).
 
-%% g_cmd/0 generates a command for the internal command language of the fuse
-%% system.
-g_cmd() ->
-    oneof(
-      [
-       {delay, ?LET(N, nat(), N+1)},
-       {barrier, g_atom()},
-       {gradual, g_uniform_real()},
-       heal]).
-
 %% g_refresh/0 generates a refresh setting.
 g_refresh() ->
     oneof([{reset, choose(1, 60000)}]).
@@ -863,8 +853,7 @@ with_fuse(S, Name, Fun) ->
                   lists:keystore(Name, 1, S#state.installed, {Name, NF})
             }.
 
-parse_cmds({reset, K}) -> [{delay, K}];
-parse_cmds(Cmds) -> Cmds.
+parse_cmds({reset, K}) -> [{delay, K}].
 
 %% Alternative implementation of being inside the period, based on microsecond conversion.
 in_period(Ts, Now, _) when Now < Ts -> false;

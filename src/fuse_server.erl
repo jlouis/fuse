@@ -67,7 +67,7 @@ install(Name, Opts) ->
 %% @doc ask/2 asks about the current given fuse state in a given context setting
 %% The documentation is (@see fuse:ask/1)
 %% @end
--spec ask(atom(), fuse:fuse_context()) -> ok | blown | {error, not_found}.
+-spec ask(term(), fuse:fuse_context()) -> ok | blown | {error, not_found}.
 ask(Name, sync) -> gen_server:call(?MODULE, {ask, Name});
 ask(Name, async_dirty) -> ask_(Name).
 
@@ -96,13 +96,13 @@ ask_(Name) ->
 %% @doc reset/1 resets the fuse
 %% The documentation is (@see fuse:reset/1)
 %% @end
--spec reset(atom()) -> ok | {error, not_found}.
+-spec reset(term()) -> ok | {error, not_found}.
 reset(Name) ->
     gen_server:call(?MODULE, {reset, Name}).
 
 %% @doc circuit/2 is used to manually override the fuse state
 %% @end
--spec circuit(atom(), enable | disable) -> ok.
+-spec circuit(term(), enable | disable) -> ok.
 circuit(Name, Switch) ->
     gen_server:call(?MODULE, {circuit, Name, Switch}).
 
@@ -110,14 +110,14 @@ circuit(Name, Switch) ->
 %% For documentation, (@see fuse:melt/2)
 %% @end
 -spec melt(Name) -> ok
-    when Name :: atom().
+    when Name :: term().
 melt(Name) ->
     gen_server:call(?MODULE, {melt, Name}).
 
 %% @doc remove/1 removes the fuse
 %% The documentation is (@see fuse:remove/1)
 %% @end
--spec remove(atom()) -> ok | {error, not_found}.
+-spec remove(term()) -> ok | {error, not_found}.
 remove(Name) ->
     gen_server:call(?MODULE, {remove, Name}).
 
@@ -136,7 +136,7 @@ q_melts() ->
 -spec run(Name, fun(() -> {ok, Result} | {melt, Result}), fuse:fuse_context()) ->
     {ok, Result} | blown | {error, not_found}
   when
-    Name :: atom(),
+    Name :: term(),
     Result :: any().
 
 run(Name, Func, Context) ->

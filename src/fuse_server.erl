@@ -35,7 +35,7 @@
 
 -record(state, { fuses = [] }).
 -record(fuse, {
-    name :: atom(),
+    name :: term(),
     intensity :: integer(),
     period :: integer(),
     heal_time :: integer(),

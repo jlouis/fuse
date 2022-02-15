@@ -211,7 +211,7 @@ There are a couple of different fuse types in the system:
 
 ## Administrative commands
 
-An administrator can manually disable/reenable fuses through the following commands:
+An administrator can manually disable/re-enable fuses through the following commands:
 
 ```erlang
 ok = fuse:circuit_disable(Name),
@@ -221,7 +221,7 @@ ok = fuse:circuit_enable(Name),
 
 When you disable a circuit, you blow the fuse until you enable the circuit again.
 
-The interaction rules for disables/enables is that they dominate every other command except the call to `remove/1`. That is, even reinstalling an already installed fuse will not reenable it. The only way is to either call `fuse:circuit_enable/1` or by first `fuse:remove/1`'ing the fuse and then executing an `install/1` command.
+The interaction rules for disables/enables is that they dominate every other command except the call to `remove/1`. That is, even reinstalling an already installed fuse will not re-enable it. The only way is to either call `fuse:circuit_enable/1` or by first `fuse:remove/1`'ing the fuse and then executing an `install/1` command.
 
 ## Monitoring fuse state
 
@@ -317,7 +317,7 @@ R01 - Heal non-installed fuse (must never be triggered)
 R02 - Heal installed fuse (only if blown already)
 
 Group install:
-R03 - Installation of a fuse with invalid configuation
+R03 - Installation of a fuse with invalid configuration
 R04 - Installation of a fuse with valid configuration
 
 Group Reset:
@@ -345,8 +345,8 @@ R16 - Ask on an uninstalled fus
 Group circuitry:
 R17 - Disable an installed fuse
 R18 - Disable an uninstalled fuse
-R19 - Reenable an installed fuse
-R20 - Reenable an uninstalled fuse
+R19 - Re-enable an installed fuse
+R20 - Re-enable an uninstalled fuse
 R21 - Melting a disabled fus
 
 Group reset commands:

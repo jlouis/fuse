@@ -48,7 +48,7 @@ install(Name, Options) ->
 %% @doc Administratively disables a circuit.
 %% <p>This function is intended to be used administratively, when you want to break the fuse
 %% before you do administration on the service which the fuse protects. This can be used to
-%% e.g., carry out database maintenance. After maintenance, the administrator can reenable
+%% e.g., carry out database maintenance. After maintenance, the administrator can re-enable
 %% the circuit again.</p>
 %% <p>Disabling a circuit dominates every other operation, except `remove/1'.</p>
 %% @end.
@@ -59,7 +59,7 @@ circuit_disable(Name) ->
     fuse_server:circuit(Name, disable).
 
 %% @doc Administratively (re-)enables a fuse.
-%% <p>This call is used to reenable a disabled circuit again. Always returns ok and is idempotent.</p>
+%% <p>This call is used to re-enable a disabled circuit again. Always returns ok and is idempotent.</p>
 %% <p>Use this command at the point in time where you are done with administrative fixes and want
 %% to resume normal operation of the fuse.</p>
 %% @end
